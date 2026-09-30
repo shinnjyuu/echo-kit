@@ -24,7 +24,7 @@
     "D:/Codex/echo-kit-failures/.echo-kit/runs"
   ],
   "limitations": [
-    "No production or Magic Cube integration claimed",
+    "No production or external business integration claimed",
     "Linux desktop keyring not exercised",
     "No macOS runtime validation",
     "Windows real console interrupt transport not exercised",

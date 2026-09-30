@@ -28,7 +28,7 @@ uv run echo-kit --workspace D:/echo-demo/qa services status
 uv run echo-kit --workspace D:/echo-demo/qa runs list
 ```
 
-示例生成互不嵌套的 frontend、backend、qa 三个目录，均不依赖魔方。`page` 需要正在运行的 Docker，首次启动容器需下载固定 Playwright 镜像及 npm 包。
+示例生成互不嵌套的 frontend、backend、qa 三个目录，可独立运行。`page` 需要正在运行的 Docker，首次启动容器需下载固定 Playwright 镜像及 npm 包。
 
 ## 配置与执行
 
@@ -53,10 +53,6 @@ uv run echo-kit --workspace D:/echo-demo/qa runs list
 `uv run pytest` 运行核心测试；真实演示与 Docker 验收单独运行。具体证据见 `docs/validation.md`。macOS 未验证；不把单元模拟当成真实业务或平台验收。
 
 第一版不提供 IDE 插件、Agent 引擎、通用验证码绕过、后台自动恢复。回放为已有记录与 Playwright trace 查看，不承诺重跑结果一致。
-
-## 来源
-
-服务归属、就绪等待与持续复用的设计，及 Lab 的案例／候选／独立重复执行概念，源自既有 Magic Cube Workbench 和 Agent Lab。为跨项目子进程协议重新实现，不引入原业务依赖、服务名、模型配置或私有凭据。
 
 ## 多会话协作
 
