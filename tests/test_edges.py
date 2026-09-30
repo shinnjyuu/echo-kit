@@ -26,7 +26,7 @@ def test_partial_startup_and_timeout_preserve_state(ws):
         port = sock.getsockname()[1]
     ws.cfg['services'] = {
         'good': {'command': [sys.executable, '-m', 'http.server', str(port)], 'port': port, 'ready': {'port': port}},
-        'bad': {'command': [sys.executable, '-c', 'import time;time.sleep(10)'], 'depends': ['good'], 'timeout': .2,
+        'bad': {'resource_id': 'test-bad', 'command': [sys.executable, '-c', 'import time;time.sleep(10)'], 'depends': ['good'], 'timeout': .2,
                 'ready': {'command': [sys.executable, '-c', 'raise SystemExit(1)']}}}
     manager = Services(ws)
     try:

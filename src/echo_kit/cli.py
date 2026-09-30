@@ -16,17 +16,23 @@ def parser():
     p.add_argument('--version', action='version', version=__version__)
     p.add_argument('--workspace', default='.')
     p.add_argument('--environment')
+    p.add_argument('--actor')
     p.add_argument('--json', action='store_true')
     top = p.add_subparsers(dest='module', required=True)
     for module, actions in {'workspace': ['init', 'check'], 'services': ['up', 'status', 'down', 'restart', 'logs'],
                             'auth': ['login', 'check', 'logout'], 'browser': ['up', 'status', 'down'],
                             'lab': ['run', 'compare'], 'verify': ['run'],
+                            'operations': ['list', 'show', 'resolve'],
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'], 'skills': ['export']}.items():
         group = top.add_parser(module)
         sub = group.add_subparsers(dest='action', required=True)
         for action in actions:
             cmd = sub.add_parser(action)
-            if module == 'services':
+            if module == 'operations' and action != 'list':
+                cmd.add_argument('id')
+                if action == 'resolve':
+                    cmd.add_argument('--note', required=True)
+            elif module == 'services':
                 cmd.add_argument('names', nargs='*')
             elif module == 'auth':
                 cmd.add_argument('name')
@@ -52,7 +58,16 @@ def dispatch(args):
             raise KitError('Skill destination is not empty; not overwriting')
         shutil.copytree(str(source), dest, dirs_exist_ok=True)
         return {'status': 'passed', 'destination': str(dest)}
+    if args.module == 'operations':
+        from .operations import Journal
+        journal = Journal()
+        if args.action == 'list':
+            return {'operations': journal.list()}
+        if args.action == 'show':
+            return journal.show(args.id)
+        return journal.resolve(args.id, args.note)
     ws = Workspace(args.workspace, args.environment)
+    ws.actor = args.actor
     if args.module in ('workspace', 'doctor'):
         checks = []
         for name in ws.cfg.get('projects', {}):
@@ -81,22 +96,8 @@ def dispatch(args):
             if len(args.ids) != 2:
                 raise KitError('compare requires two run IDs')
             return compare(read(path / 'run.json'), read(locate(ws, args.ids[1]) / 'run.json'))
-        from .adapter import execute
-        from .core import save
-        with ws.lock():
-            record = read(path / 'run.json')
-            cleanup = ws.cfg.get('cases', {}).get(record['case'], {}).get('cleanup')
-            if not cleanup or not (path / 'active.json').exists():
-                raise KitError('No pending run with configured cleanup adapter')
-            attempt = path / ('cleanup-' + str(len(list(path.glob('cleanup-*'))) + 1))
-            result = execute(ws, cleanup, attempt, {'run_id': record['id'], 'active': read(path / 'active.json')})
-            if result.get('status') == 'passed' and result.get('terminal_confirmed') is True:
-                (path / 'active.json').unlink()
-                record['cleanup'] = 'confirmed after run'
-                save(path / 'run.json', record)
-                report(path)
-                return {'status': 'passed', 'cleanup': 'confirmed', 'original_status': record['status']}
-            raise KitError('Cleanup not confirmed; active record retained')
+        from .runner import cleanup_run
+        return cleanup_run(ws, path)
     if args.module == 'services' and args.action in ('status', 'logs'):
         from .services import Services
         service = Services(ws)
@@ -105,28 +106,23 @@ def dispatch(args):
         if len(args.names) != 1:
             raise KitError('logs requires one service name')
         return service.logs(args.names[0])
-    with ws.lock():
-        if args.module == 'services':
-            from .services import Services
-            service = Services(ws)
-            names = args.names or list(ws.cfg.get('services', {}))
-            if args.action in ('down', 'restart'):
-                result = service.down(names)
-                if args.action == 'down':
-                    return result
-            return service.up(names)
-        if args.module == 'auth':
-            from .auth import authenticate
-            summary, _ = authenticate(ws, args.name, args.action)
-            return summary
-        if args.module == 'browser':
-            from .browser import manage
-            return manage(ws, args.action)
-        from .runner import run
-        result = []
-        for variant in args.variants:
-            result.extend(run(ws, args.case, args.module, variant, args.repeat))
-        return result
+    if args.module == 'services':
+        from .services import Services
+        service = Services(ws)
+        names = args.names or list(ws.cfg.get('services', {}))
+        return getattr(service, args.action)(names)
+    if args.module == 'auth':
+        from .auth import authenticate
+        summary, _ = authenticate(ws, args.name, args.action)
+        return summary
+    if args.module == 'browser':
+        from .browser import manage
+        return manage(ws, args.action)
+    from .runner import run
+    result = []
+    for variant in args.variants:
+        result.extend(run(ws, args.case, args.module, variant, args.repeat))
+    return result
 
 
 def exit_code(result):
@@ -145,7 +141,7 @@ def main(argv=None):
         result = dispatch(args)
         code = exit_code(result)
     except (KitError, Timeout, OSError, ValueError, KeyError) as error:
-        result, code = {'status': 'blocked', 'error': str(error)}, 2
+        result, code = {'status': 'blocked', 'error': str(error), **getattr(error, 'details', {})}, 2
     except KeyboardInterrupt:
         result, code = {'status': 'interrupted'}, 130
     if args.json:

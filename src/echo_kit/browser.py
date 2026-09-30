@@ -28,11 +28,21 @@ def connect_check(endpoint):
 
 
 def manage(ws, action):
+    from .operations import operation, browser_resource, browser_resources
+    if action == 'status':
+        return _manage(ws, action)
+    key = browser_resource(ws)
+    resources = {key: 'exclusive' if action == 'down' else 'shared' for key in browser_resources(ws)}
+    if action == 'up':
+        resources['browser-start:' + key] = 'exclusive'
+    with operation(ws, 'browser.' + action, resources):
+        return _manage(ws, action)
+
+
+def _manage(ws, action):
     cfg = ws.cfg.get('browser', {})
     file = ws.state / 'browser.json'
     state = read(file, {})
-    if action == 'down' and any(ws.runs.glob('*/active.json')):
-        raise KitError('Unfinished runs exist; resolve them before stopping browser')
     if version('playwright') != PLAYWRIGHT_VERSION:
         raise KitError('Playwright client version mismatch')
     if cfg.get('endpoint'):

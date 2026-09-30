@@ -21,6 +21,8 @@ def execute(ws, spec, directory, request, secret=None):
     with (directory / 'stdout.log').open('wb') as output:
         p = spawn(ws.command(spec), ws.project(spec.get('project')), env, output, subprocess.PIPE)
         identity = fingerprint(p.pid)
+        from .operations import track_child
+        track_child(identity)
         try:
             p.communicate(json.dumps(secret or {}).encode(), timeout=spec.get('timeout', 60))
         except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:

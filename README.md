@@ -42,7 +42,7 @@ uv run echo-kit --workspace D:/echo-demo/qa runs list
 
 ## 运行与安全边界
 
-托管服务持续运行；外部服务显式 `mode="external"`，不会停止。进程身份不匹配时不发送终止信号。运行存在 active.json 时阻止新用例与停服务，使用 `runs cleanup ID` 调用项目清理并核验终态，不能删除标记伪造收尾。
+托管服务持续运行；外部服务显式 `mode="external"`，不会停止。进程身份不匹配时不发送终止信号。未完成运行只保护其关联资源；无关联信息的旧记录仍需先收尾。使用 `runs cleanup ID` 核验终态，不能删除标记伪造收尾。
 
 认证协议通过内存管道传秘密。只向受支持的系统凭据后端持久化；不可用时只保留当前调用内状态。独立 auth login 在这种情况下不会为下一条命令保留状态；verify 同次调用仍可使用。
 
@@ -57,3 +57,11 @@ uv run echo-kit --workspace D:/echo-demo/qa runs list
 ## 来源
 
 服务归属、就绪等待与持续复用的设计，及 Lab 的案例／候选／独立重复执行概念，源自既有 Magic Cube Workbench 和 Agent Lab。为跨项目子进程协议重新实现，不引入原业务依赖、服务名、模型配置或私有凭据。
+
+## 多会话协作
+
+先运行 `echo-kit operations list` 查看共享操作，再使用 `echo-kit --actor "本轮验收说明" --workspace PATH verify run CASE`。同一服务被占用时返回 `resource_busy` 和占用者，AI 自行协调后重试；不自动排队。不同资源可并行，登录不再被整轮验收锁住。
+
+`operations show ID` 查看历史；异常运行先 `runs cleanup ID`。仅在用户确认收尾、执行进程退出后使用 `operations resolve ID --note "确认说明"`。不会杀进程或清空历史。作用范围为同一机器、同一系统用户、使用新版 Echo 的操作；升级前先结束旧版任务。
+
+构建类服务可以声明 `artifacts=["target/app.jar"]`，报告记录启动产物哈希。当前源码与运行版本分开记录；热更新服务不承诺固定版本。资源配置和边界见协议文档。

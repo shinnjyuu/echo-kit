@@ -40,6 +40,14 @@ def invoke(ws, cfg, action, state=None):
 
 
 def authenticate(ws, name, action='login'):
+    from .operations import operation
+    cfg, _ = binding(ws, name)
+    key = hashlib.sha256(json.dumps([ws.identity, ws.environment, cfg['account'], cfg['target']]).encode()).hexdigest()
+    with operation(ws, 'auth.' + action, {'auth:' + key: 'exclusive'}):
+        return _authenticate(ws, name, action)
+
+
+def _authenticate(ws, name, action='login'):
     cfg, key = binding(ws, name)
     persistent = secure_backend()
     state = None
