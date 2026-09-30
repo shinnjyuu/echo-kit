@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "echo-kit"
+name = "shinnjyuu-echo-kit"
 version = "0.1.0"
 description = "Reusable experiments and verification workflows for AI coding assistants"
 readme = "README.md"

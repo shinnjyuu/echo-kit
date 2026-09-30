@@ -146,37 +146,6 @@ wheels = [
 ]
 
 [[package]]
-name = "echo-kit"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "filelock" },
-    { name = "keyring" },
-    { name = "playwright" },
-    { name = "psutil" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "build" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "filelock", specifier = ">=3.16,<4" },
-    { name = "keyring", specifier = ">=25,<26" },
-    { name = "playwright", specifier = "==1.63.0" },
-    { name = "psutil", specifier = ">=6,<8" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "build", specifier = ">=1,<2" },
-    { name = "pytest", specifier = ">=8,<9" },
-]
-
-[[package]]
 name = "filelock"
 version = "3.32.7"
 source = { registry = "https://pypi.org/simple" }
@@ -495,6 +464,37 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/46/f5af3402b579fd5e11573ce652019a67074317e18c1935cc0b4ba9b35552/secretstorage-3.5.0-py3-none-any.whl", hash = "sha256:0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137", size = 15554, upload-time = "2025-11-23T19:02:51.545Z" },
+]
+
+[[package]]
+name = "shinnjyuu-echo-kit"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "filelock" },
+    { name = "keyring" },
+    { name = "playwright" },
+    { name = "psutil" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "build" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "filelock", specifier = ">=3.16,<4" },
+    { name = "keyring", specifier = ">=25,<26" },
+    { name = "playwright", specifier = "==1.63.0" },
+    { name = "psutil", specifier = ">=6,<8" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "build", specifier = ">=1,<2" },
+    { name = "pytest", specifier = ">=8,<9" },
 ]
 
 [[package]]

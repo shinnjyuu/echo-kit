@@ -2,7 +2,7 @@
 
 让 AI 的实验、调试与验收成为团队可复用的工程能力。
 
-发布维护见 [PyPI 发布说明](docs/publishing.md)。首次正式发布完成后可使用 `uvx echo-kit@latest --version` 获取当前版本，再通过 `uvx echo-kit@具体版本 …` 固定一轮任务的执行版本。
+发布维护见 [PyPI 发布说明](docs/publishing.md)。首次正式发布完成后可使用 `uvx --from shinnjyuu-echo-kit@latest echo-kit --version` 获取当前版本，再通过 `uvx --from shinnjyuu-echo-kit@具体版本 echo-kit …` 固定一轮任务的执行版本。
 
 Python 3.11+。一个包提供 workspace、doctor、services、auth、browser、lab、verify、runs 和 Skill 导出。各能力按需使用，Lab 不要求 Docker 或服务启动。
 
