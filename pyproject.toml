@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "echo-kit"
+version = "0.1.0"
+description = "Reusable experiments and verification workflows for AI coding assistants"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["psutil>=6,<8", "filelock>=3.16,<4", "keyring>=25,<26", "playwright==1.63.0"]
+
+[project.scripts]
+echo-kit = "echo_kit.cli:main"
+
+[project.urls]
+Repository = "https://github.com/shinnjyuu/echo-kit"
+Issues = "https://github.com/shinnjyuu/echo-kit/issues"
+
+[dependency-groups]
+dev = ["pytest>=8,<9", "build>=1,<2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/echo_kit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

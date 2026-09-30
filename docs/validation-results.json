@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-30",
+  "package": "echo-kit",
+  "version": "0.1.0",
+  "windows": {"python": "3.12.6", "passed": 28, "skipped": 1, "skip_reason": "POSIX SIGINT transport test"},
+  "linux_container": {"distribution": "Ubuntu Noble", "python": "3.12.3", "passed": 29, "skipped": 0},
+  "macos": "unverified",
+  "wheel_clean_install": "passed",
+  "skill_export": "passed",
+  "real_examples": {
+    "lab_variants": "passed, baseline and double each repeated three times",
+    "api_login_download": "passed",
+    "windows_auth_reuse": "passed with system credential backend",
+    "linux_auth_ephemeral": "passed without persistence",
+    "docker_page_download": "passed",
+    "external_services": "passed using prestarted local demo instances",
+    "frontend_only": "passed after correctly refusing occupied port",
+    "clean_install_lab_run": "20260930-144131-187ca8c753",
+    "clean_install_page_run": "20260930-144132-152678fbf8"
+  },
+  "evidence_roots": [
+    "D:/Codex/echo-kit-v1-demo/qa/.echo-kit/runs",
+    "D:/Codex/echo-kit-installed-demo/qa/.echo-kit/runs",
+    "D:/Codex/echo-kit-failures/.echo-kit/runs"
+  ],
+  "limitations": [
+    "No production or Magic Cube integration claimed",
+    "Linux desktop keyring not exercised",
+    "No macOS runtime validation",
+    "Windows real console interrupt transport not exercised",
+    "External service demonstration is local network topology, not Internet deployment"
+  ]
+}
