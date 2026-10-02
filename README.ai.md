@@ -24,10 +24,10 @@
 uvx --from shinnjyuu-echo-kit@latest echo-kit --version
 ```
 
-拿到版本号后，后续命令固定使用该版本。以下以 `0.1.1` 为例，实际执行时替换为选定版本：
+拿到版本号后，后续命令固定使用该版本。以下以 `0.1.2` 为例，实际执行时替换为选定版本：
 
 ```sh
-uv tool install "shinnjyuu-echo-kit==0.1.1"
+uv tool install "shinnjyuu-echo-kit==0.1.2"
 echo-kit --version
 echo-kit --help
 ```
@@ -35,7 +35,7 @@ echo-kit --help
 如果已有其他版本、无法修改工具安装或命令不在 PATH，可使用固定版本的独立调用：
 
 ```sh
-uvx --from shinnjyuu-echo-kit@0.1.1 echo-kit --help
+uvx --from shinnjyuu-echo-kit@0.1.2 echo-kit --help
 ```
 
 采用独立调用时，将下文所有 `echo-kit` 命令替换为同一个固定版本前缀。不要在一轮接入或验收中反复解析 `latest`，也不要中途升级正在使用的工具。
@@ -43,7 +43,7 @@ uvx --from shinnjyuu-echo-kit@0.1.1 echo-kit --help
 需要从源码安装时，可以使用官方仓库的指定版本，例如：
 
 ```sh
-uv tool install "git+https://github.com/shinnjyuu/echo-kit.git@v0.1.1"
+uv tool install "git+https://github.com/shinnjyuu/echo-kit.git@v0.1.2"
 ```
 
 源码安装需要 Git；也支持从本地 Kit 源码目录执行 `uv tool install .`，或安装已取得的 wheel。记录来源、版本，源码安装还应记录提交。无法获取工具时说明具体阻碍，保留已完成的项目检查结果。
@@ -68,6 +68,8 @@ echo-kit skills export "EMPTY_SKILLS_DIR"
 先阅读导出的 `echo-init/SKILL.md` 和 `references/protocol.md`，再配置工作区或编写适配器。无需启用所有能力；Lab 和 Workbench 可以独立使用。
 
 Skills 的安装位置遵循当前 AI 助手与目标项目的约定，导出命令不会修改助手配置。如果目标 Skills 目录已有内容，先导出到单独的空目录，再检查差异、保留已有修改并合并所需文件。保持各 Skill 与 `references/protocol.md` 的相对路径关系，不能只复制一个 `SKILL.md`。
+
+GitHub 文档、工具内置文档和项目导出副本分别更新。仓库推送不会自动改变已安装或缓存的工具；切换到包含修改的已发布版本后，才能导出该版本的新文档。项目中的旧副本仍需按上述方式比较、合并，并记录所用版本。不要把仓库最新说明当成旧版 CLI 已支持的行为。
 
 ## 4. 配置工作区与最小用例
 
@@ -162,4 +164,4 @@ echo-kit --workspace "WORKSPACE" --json runs report RUN_ID
 
 当前不提供 IDE 插件、Agent 引擎、通用验证码绕过或后台自动恢复。回放指已有记录和 Playwright trace 查看，不承诺确定性重跑。
 
-维护 Kit 时，保持 `docs/protocol.md` 与 `src/echo_kit/skills/references/protocol.md` 同步。构建与发布步骤见[发布维护说明](docs/publishing.md)，发布需明确任务授权。
+维护 Kit 时，保持 Skill、协议副本与 CLI 文档入口、相关命令和示例一致。随包 Skill 或协议的修改需要提升版本并发布，且应在仓库外验证安装包实际携带的新内容；尚未发布时明确标记“待发版”。项目导出副本需另外比较、合并。完整规则见[发布与随包文档更新机制](docs/publishing.md)，发布遵循本轮已有授权。
