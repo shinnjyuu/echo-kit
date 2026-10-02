@@ -1,63 +1,88 @@
 # Echo Kit
 
-让 AI 的实验、调试与验收成为团队可复用的工程能力。
+**让 AI 为你的项目做实验、查问题、验收结果，并把这些过程留下来反复使用。**
 
-发布维护见 [PyPI 发布说明](docs/publishing.md)。首次正式发布完成后可使用 `uvx --from shinnjyuu-echo-kit@latest echo-kit --version` 获取当前版本，再通过 `uvx --from shinnjyuu-echo-kit@具体版本 echo-kit …` 固定一轮任务的执行版本。
+Echo Kit 是一套供 AI 编程助手调用的工具。它帮助 AI 复用项目的启动和测试流程，执行检查，并留下结果、日志和文件等证据。换一个会话或换一位同事，也能沿用项目里已经整理好的验证方法。
 
-Python 3.11+。一个包提供 workspace、doctor、services、auth、browser、lab、verify、runs 和 Skill 导出。各能力按需使用，Lab 不要求 Docker 或服务启动。
+本页面向第一次了解 Echo Kit 的人。负责接入项目的 AI 请阅读 [AI 接入指南](README.ai.md)。
 
-```powershell
-uv tool install .
-echo-kit --help
-echo-kit --workspace D:/my-project workspace init
-echo-kit skills export D:/my-project/.agents/skills
+## 它能帮我做什么？
+
+比如，你刚让 AI 修复了一个文件导出功能，还想知道：页面能操作吗？文件真的下载了吗？内容对不对？
+
+接入对应的验收用例后，你可以直接告诉 AI：
+
+> 用 Echo Kit 验证这次导出功能的修改，检查页面操作、文件下载和内容，并把结果和证据给我。
+
+AI 就可以复用项目中约定的流程，准备所需服务、执行这些检查，并告诉你哪些通过、哪些失败、哪些还没验证。下次改到同一功能，还能继续使用这套流程。
+
+| 你想做的事 | Echo Kit 提供的支持 |
+| --- | --- |
+| 比较两种算法、参数或实现 | 分别运行候选方案，保存每次结果，对比检查项和指标 |
+| 验收一次功能修改 | 按用例准备服务、登录和浏览器，收集接口或页面检查结果 |
+| 让后续 AI 和同事接着用 | 把配置和验证脚本保存在项目里，留下可查看的运行记录 |
+| 多个 AI 会话同时工作 | 在同一台机器、同一系统用户下，识别服务等资源的占用冲突 |
+
+具体检查什么、怎样判断正确，由项目自己的验证脚本定义；AI 会在首次接入时复用或补充这些脚本。实验、服务管理和功能验收可以按需使用。
+
+## 第一次使用：复制给 AI
+
+**你不需要提前安装 Echo Kit，也不需要先下载这个仓库。** 打开你自己的项目，使用能够联网、读写项目文件并执行命令的 AI 编程助手，把下面整段话发给它。提示词已经包含工具地址。
+
+```text
+请为当前项目接入 Echo Kit，让后续 AI 会话能够复用
+项目的实验、调试和验收能力。
+
+官方仓库：https://github.com/shinnjyuu/echo-kit
+请先阅读仓库根目录的 README.ai.md，按其中的步骤获取工具，
+再遵循所选版本的 echo-init Skill 和公开协议完成接入。
+不要假设本机已经安装 Echo Kit 或其运行环境；请自行检查，
+按官方说明安装所需工具，并记录本次使用的版本。
+
+先了解当前项目的开发约定、目录结构、启动方式和已有测试，
+优先复用现有命令与脚本。若已有部分接入，请在原有基础上补齐，
+保留团队修改。根据项目实际需要选择能力，
+先打通一个有实际价值的最小本地验证流程。
+
+请把可复用的配置、适配器和后续 AI 使用入口留在项目中；
+本机路径和凭据按协议处理。只对无法从项目中确定、
+且影响接入的关键事项向我提问。
+操作共享业务环境需要另行取得授权，不要提交或推送代码。
+
+完成后说明：接入了什么、实际验证了什么、还有哪些未完成事项、
+证据在哪里，以及我以后可以怎样让 AI 使用这些能力。
 ```
 
-也可以 `uv tool install git+<仓库地址>` 或安装 `dist` 中的 wheel。不需要发布公共包。Skills 的安装目录遵循所用 AI 助手规则；导出不会改助手配置。
+AI 会先检查项目和本机环境，再安装工具、配置所需能力并运行最小验证。你只需补充它无法从项目里确定的信息，例如目标测试环境或登录方式。
 
-## 独立演示
+## 接入后，我会得到什么？
 
-```powershell
-uv sync --group dev
-uv run python examples/create_demo.py --output D:/echo-demo
-uv run echo-kit --workspace D:/echo-demo/qa --json workspace check
-uv run echo-kit --workspace D:/echo-demo/qa lab compare arithmetic --variants baseline double --repeat 3
-uv run echo-kit --workspace D:/echo-demo/qa verify run api
-uv run echo-kit --workspace D:/echo-demo/qa verify run page
-uv run echo-kit --workspace D:/echo-demo/qa services status
-uv run echo-kit --workspace D:/echo-demo/qa runs list
-```
+- **可以重复使用的验证流程**：项目里保存配置和验证脚本，后续会话可以继续调用。
+- **有依据的结果**：每次运行留下检查结论和报告；用例还可以保存截图、下载文件等证据。
+- **清楚的交接说明**：哪些能力已经可用、哪些确实跑通过、下一次应该怎样使用。
 
-示例生成互不嵌套的 frontend、backend、qa 三个目录，可独立运行。`page` 需要正在运行的 Docker，首次启动容器需下载固定 Playwright 镜像及 npm 包。
+例如，接入相应能力后，你可以继续这样交代 AI：
 
-## 配置与执行
+> 用 Echo Kit 对比当前实现和候选实现，各运行三次，把指标差异给我。
 
-共享 `echo-kit.toml` 与 `echo/` 适配、用例入 Git；`.echo-kit/local.toml` 深度覆盖共享配置，environment 覆盖随后生效。所有 `.echo-kit/` 状态不提交。绝对路径放本机覆盖，命令数组中的 `{python}` 指 Kit 解释器；业务 Python 应改为项目实际解释器。
+> 用 Echo Kit 跑一下这个项目已有的 API 验收，说明通过、失败和未验证的部分。
 
-命令必须使用数组，不隐式经过 Shell。`env_refs` 把指定环境变量传给适配器，敏感信息禁止写在 `command` 或 `env` 字面量。Kit 不记录全环境变量；项目脚本不得把秘密打印到 stdout 或写入证据。
+> 看一下上次失败的运行记录，结合日志和检查结果定位问题。
 
-全局选项置于模块前：`echo-kit --workspace PATH --environment NAME --json lab run CASE`。退出码 0 为已执行范围成功，1 为检查失败，2 为受阻或未验证，130 为中断。`services status` 的成功表示查询成功，请检查各实例的 ready 字段。
+项目的业务依赖和开发方式仍由项目管理。前端、后端和验收脚本可以在不同目录，也可以连接已经运行的外部服务。
 
-适配协议、认证和配置详见 [协议文档](docs/protocol.md)。业务依赖由项目管理，CLI 不导入业务模块。简单 `protocol="command"` 只核对退出码，不能证明语义正确。
+## 使用条件与当前范围
 
-## 运行与安全边界
+Echo Kit 本身需要 Python 3.11+，业务项目可以使用其他语言。AI 可以协助安装工具及其运行环境。普通实验和 API 验收不要求 Docker；使用工具托管的浏览器时才需要 Docker。
 
-托管服务持续运行；外部服务显式 `mode="external"`，不会停止。进程身份不匹配时不发送终止信号。未完成运行只保护其关联资源；无关联信息的旧记录仍需先收尾。使用 `runs cleanup ID` 核验终态，不能删除标记伪造收尾。
+当前验证记录覆盖 Windows 和 Linux 容器；macOS 尚未验证。登录需要项目正常的认证流程。截图、日志和下载文件可能含业务数据，分享前请检查。
 
-认证协议通过内存管道传秘密。只向受支持的系统凭据后端持久化；不可用时只保留当前调用内状态。独立 auth login 在这种情况下不会为下一条命令保留状态；verify 同次调用仍可使用。
+验收结论只覆盖实际执行的检查。Kit 会标明失败、受阻和未验证的情况；历史记录用于追查过程，不保证重跑结果完全一致。
 
-报告只自动链接显式声明的产物。请求文件、适配输出、截图及 trace 可能包含业务数据，分享前审查。Kit 无法阻止恶意或错误适配器自行泄露数据；适配器是项目受信代码。
+## 进一步阅读
 
-## 验证与限制
-
-`uv run pytest` 运行核心测试；真实演示与 Docker 验收单独运行。具体证据见 `docs/validation.md`。macOS 未验证；不把单元模拟当成真实业务或平台验收。
-
-第一版不提供 IDE 插件、Agent 引擎、通用验证码绕过、后台自动恢复。回放为已有记录与 Playwright trace 查看，不承诺重跑结果一致。
-
-## 多会话协作
-
-先运行 `echo-kit operations list` 查看共享操作，再使用 `echo-kit --actor "本轮验收说明" --workspace PATH verify run CASE`。同一服务被占用时返回 `resource_busy` 和占用者，AI 自行协调后重试；不自动排队。不同资源可并行，登录不再被整轮验收锁住。
-
-`operations show ID` 查看历史；异常运行先 `runs cleanup ID`。仅在用户确认收尾、执行进程退出后使用 `operations resolve ID --note "确认说明"`。不会杀进程或清空历史。作用范围为同一机器、同一系统用户、使用新版 Echo 的操作；升级前先结束旧版任务。
-
-构建类服务可以声明 `artifacts=["target/app.jar"]`，报告记录启动产物哈希。当前源码与运行版本分开记录；热更新服务不承诺固定版本。资源配置和边界见协议文档。
+- [AI 接入指南](README.ai.md)：从未安装到完成项目接入，也适合希望手动配置的开发者。
+- [独立演示](docs/demo.md)：用示例项目体验实验、API 验收和浏览器验收。
+- [公开协议](docs/protocol.md)：编写项目适配器、配置认证和管理运行结果。
+- [验证记录](docs/validation.md)与[多会话协作验证](docs/operations-validation.md)：已验证的范围和平台限制。
+- [发布维护说明](docs/publishing.md)：面向维护者的构建和发布流程。
