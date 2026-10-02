@@ -54,7 +54,7 @@ uv run echo-kit --workspace D:/echo-demo/qa --json services status
 
 运行记录和 HTML 报告默认位于 `D:/echo-demo/qa/.echo-kit/runs/`。页面用例通过时还会留下截图、下载文件和 Playwright trace。
 
-服务在验收结束后保持运行。确认本次演示的运行已完成，且没有其他会话占用后，可停止演示托管的服务；只有运行过页面验收并启动了托管浏览器时才执行 `browser down`。
+Kit 不会在验收结束时主动停止演示服务，以便后续复用；宿主退出后服务可能停止，具体按[服务生命周期约定](protocol.md#managed-service-lifetime)处理。确认当前服务状态、本次演示的运行已完成，且没有其他会话占用后，可停止演示托管的服务；只有运行过页面验收并启动了托管浏览器时才执行 `browser down`。
 
 ```sh
 uv run echo-kit --json operations list

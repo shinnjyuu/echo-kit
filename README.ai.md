@@ -114,7 +114,7 @@ echo-kit --workspace "WORKSPACE" --actor "首次接入验证" --json lab run CAS
 echo-kit --workspace "WORKSPACE" --actor "首次接入验证" --json verify run CASE
 ```
 
-Lab 不自动准备服务、登录或浏览器；Verify 只准备当前用例声明的能力。托管服务在用例结束后保持运行。默认运行一次，仅在实验目的或用户要求需要时增加次数。
+Lab 不自动准备服务、登录或浏览器；Verify 只准备当前用例声明的能力。Kit 不会在用例结束时主动停止托管服务，以便后续复用；跨宿主退出的行为遵循下方的生命周期约定。默认运行一次，仅在实验目的或用户要求需要时增加次数。
 
 也可按需独立使用 `services up NAME`、`auth login NAME` 和 `browser up`；`doctor` 可检查已配置服务的就绪状态。用例通过与否仍以实际检查证据为准。
 
@@ -130,6 +130,10 @@ echo-kit --workspace "WORKSPACE" --json runs report RUN_ID
 需要比较结果时使用 `lab compare CASE --variants baseline candidate --repeat 3` 或 `runs compare LEFT RIGHT`，变体和运行 ID 必须来自项目实际配置或记录。HTTP 成功、页面显示、文件下载和文件内容正确是不同的检查；报告中分别说明。
 
 ## 6. 处理占用、认证和未完成任务
+
+**设计允许的生命周期边界**：AI 工具或启动终端退出、更新、重启或崩溃后，托管的本地服务可能停止，也可能继续运行。Kit 不保证跨宿主退出存活，不提供独立守护进程、自动重启或开机恢复。登记文件仍存在不能作为服务存活的证据，也不能把退出宿主视为已经清理服务。完整约定见[公开协议](docs/protocol.md#managed-service-lifetime)。
+
+恢复工作时，先在目标工作区和环境下检查 `operations list`、`services status`。复用仍然就绪的实例；已停止且本轮需要的服务，在处理关联的未完成任务后，按现有授权通过 `services up NAME` 启动。不得因宿主退出就重发业务请求、删除占用记录或接管未知进程；远端或异步业务任务仍需单独确认终态。
 
 同机同系统用户的操作通过共享记录协调。发生 `resource_busy` 时，读取返回的占用者及 `operations show ID`，说明冲突；不强制重启、不删除锁或操作记录。不同资源可以并行，没有自动排队。跨机器、不同系统用户和 Echo 之外的操作不在协调范围内。
 

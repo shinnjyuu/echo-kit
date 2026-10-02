@@ -10,6 +10,14 @@ Commands execute without shell, with project cwd. `{python}` is the Kit interpre
 
 Cases use `[cases.NAME]`, `command`, `project`, `inputs`, `variants.NAME` input overrides, `timeout`, `required_checks`, and `mode` (unit/probe/integration or project-defined scope). `protocol="command"` records only exit-code success. Verify additionally accepts `services=[...]`, `auth="NAME"`, `browser=true`. Lab deliberately does not prepare these capabilities.
 
+## Managed service lifetime
+
+Kit leaves managed service processes running after a case or CLI invocation finishes so later invocations can reuse them. Survival across the launching AI application's or terminal's exit, update, restart or crash, or an OS restart, is not guaranteed. A service stopping at those boundaries is allowed by design. Depending on the platform and launch method, it may also remain running; host exit must not be treated as guaranteed cleanup.
+
+Service registration preserves process identity, logs and launch metadata. It can outlive the process and does not establish current readiness. Kit provides no independent service daemon, automatic restart or boot persistence. This boundary concerns local managed service processes; external instances and Docker browsers retain their own ownership and lifecycle.
+
+When resuming work, inspect `operations list` and `services status` in the intended workspace/environment. Reuse healthy instances. Resolve associated unfinished work before starting needed stopped services with `services up NAME` within the authorized scope. Preserve identity checks and resource reservations; do not delete state or take over unknown processes. Host or local service exit does not confirm that remote/asynchronous business tasks have ended: the normal cleanup and terminal-evidence rules still apply.
+
 ## Experiment and verification subprocess
 
 Environment variables: ECHO_REQUEST (JSON input path), ECHO_RESULT (JSON output path), ECHO_RUN_DIR (artifact directory), ECHO_ACTIVE (parent run task state).

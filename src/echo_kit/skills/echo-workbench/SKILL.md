@@ -9,7 +9,9 @@ Inspect workspace/environment and the requested case first. Read [the protocol](
 
 Use `services status`, `services up NAME`, `auth login NAME`, `browser up` independently as needed. `verify run CASE` prepares only that case's declared capabilities. Global options precede the module.
 
-Keep services running after a case. Never adopt or kill an unknown process, silently change shared configuration, or bypass normal authentication. An unavailable secure vault means current-invocation auth only. Browser and HTTP account/environment must match.
+Leave owned services running after a case for reuse. Never adopt or kill an unknown process, silently change shared configuration, or bypass normal authentication. An unavailable secure vault means current-invocation auth only. Browser and HTTP account/environment must match.
+
+Local managed services may stop when the launching AI application or terminal exits, updates or crashes; they may also remain running. This is a design-allowed boundary, with neither guaranteed survival nor automatic cleanup. When resuming, follow the [service lifetime rules](../references/protocol.md#managed-service-lifetime): inspect operations and readiness, reuse healthy instances, and start only needed stopped services within authorized scope after resolving associated unfinished work. Host or service exit does not confirm business task completion.
 
 For asynchronous business work, adapters write only this run's task IDs to ECHO_ACTIVE and provide a cleanup command that checks terminal state. A timeout never triggers automatic resubmission. Inspect retained active records and use `runs cleanup ID`; do not delete markers to pretend cleanup succeeded.
 

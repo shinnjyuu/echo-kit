@@ -46,6 +46,22 @@ Linux 额外通过真实 SIGINT 中断测试；Windows 跳过 POSIX SIGINT 测�
 
 ## 复现
 
-运行 README 中的示例流程。`uv run pytest -q` 为自动化测试入口；`uv build` 后在独立虚拟环境安装 wheel 验证分发。
+运行[独立演示](demo.md)中的流程。`uv run pytest -q` 为自动化测试入口；`uv build` 后在独立虚拟环境安装 wheel 验证分发。
 
 最终测试数量和构建结果以同目录 `validation-results.json` 记录为准。
+
+## 2026-10-02 补充：宿主退出与服务生命周期
+
+产品约定：托管的本地服务在 AI 工具或启动终端退出、更新、重启或崩溃后停止，是设计允许的场景。Kit 支持跨 CLI 调用复用服务，不保证跨宿主退出存活，也不保证退出宿主会自动清理服务。正式定义与恢复工作流程见[公开协议](protocol.md#managed-service-lifetime)。
+
+在 Windows / Python 3.12.6 上，使用 Echo Kit 启动隔离的本机 HTTP 服务，并将测试启动器置于单独创建的 Windows Job Object 中，设置 `KILL_ON_JOB_CLOSE`。实际观察如下：
+
+| 场景 | 服务状态 | 登记记录 |
+| --- | --- | --- |
+| Echo 启动命令正常结束 | `ready=true`、`owned=true` | 保留 |
+| 测试启动器退出，测试 Job 仍打开 | `ready=true`、`owned=true` | 保留 |
+| 关闭测试 Job 的最后一个句柄 | `ready=false`、`owned=false` | 仍保留 |
+
+本机诊断脚本与原始结果保存在 `.echo-kit/diagnostics/service-lifetime-20261002/`，属于忽略目录，不随仓库分发；上表保留已观察到的结论。测试结束后已确认测试进程停止。另有两项现有核心测试通过，覆盖服务复用与归属核验、两个 CLI 并发启动时的状态保存。
+
+这次复现只关闭测试专用的 Job，没有退出、更新或模拟崩溃真实 Codex，也没有停止现有业务服务。它验证了当前启动方式受 Windows 进程集合生命周期影响的可能性，不能据此认定每次 Codex 退出都会停止服务，或确认某次历史闪退的具体原因。该场景未在 Linux、macOS 或 Docker 浏览器上重新验证。
