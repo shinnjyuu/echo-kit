@@ -130,6 +130,7 @@ class Journal:
         return [self.show(p.stem) for p in sorted(self.root.glob('*.json'))]
 
     def acquire(self, ws, action, resources, run_id=None, evidence=None):
+        from . import __version__
         with self.lock():
             blockers = [r for r in self.list() if r['held'] and any(
                 key in r['held'] and ('exclusive' in (mode, r['held'][key]))
@@ -138,6 +139,7 @@ class Journal:
                 raise ResourceBusy(blockers)
             oid = uuid.uuid4().hex
             record = {'id': oid, 'actor': getattr(ws, 'actor', None), 'workspace': str(ws.root),
+                      'task_id': getattr(ws, 'task_id', None), 'tool_version': __version__,
                       'environment': ws.environment, 'action': action, 'resources': resources,
                       'held': resources.copy(), 'started': time.time(), 'identity': fingerprint(os.getpid()),
                       'run_id': run_id, 'evidence': str(evidence) if evidence else None,
@@ -243,6 +245,7 @@ def activity(action, state):
 
 @contextmanager
 def operation(ws, action, resources, run_id=None, evidence=None):
+    resources = {**resources, 'toolchain:' + canonical_path(ws.root): 'shared'}
     try:
         check_legacy(ws)
     except KitError as error:

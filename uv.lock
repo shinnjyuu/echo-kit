@@ -468,11 +468,12 @@ wheels = [
 
 [[package]]
 name = "shinnjyuu-echo-kit"
-version = "0.1.2"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
     { name = "keyring" },
+    { name = "packaging" },
     { name = "playwright" },
     { name = "psutil" },
 ]
@@ -487,6 +488,7 @@ dev = [
 requires-dist = [
     { name = "filelock", specifier = ">=3.16,<4" },
     { name = "keyring", specifier = ">=25,<26" },
+    { name = "packaging", specifier = ">=24,<27" },
     { name = "playwright", specifier = "==1.63.0" },
     { name = "psutil", specifier = ">=6,<8" },
 ]

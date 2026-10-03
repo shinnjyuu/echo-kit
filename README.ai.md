@@ -12,22 +12,22 @@
 
 接入可先完成本地配置和最小验证。提交、推送、发布、部署及操作共享业务环境，需要相应任务授权。
 
-## 2. 获取工具并固定版本
+## 2. 获取工具并建立项目入口
 
 不要假设本机已安装 Echo Kit、Python 或 uv。检查已有工具及团队规定的 Kit 版本。Kit 需要 Python 3.11+；业务语言不限，业务依赖由目标项目管理。
 
 缺少 uv 时，按 [uv 官方安装说明](https://docs.astral.sh/uv/getting-started/installation/)选择当前平台的安装方式。缺少兼容 Python 时，可通过 `uv python install 3.12` 准备工具运行时。遵循当前机器的安装权限，不改变项目业务解释器。
 
-团队已有固定版本时沿用该版本。全新接入且无版本约定时，可以查询当前发行版本：
+下文的更新与任务入口要求 **Echo Kit 0.2.0 及以上**。维护分支尚未发版时，从源码或本轮构建的 wheel 安装验证，不能假定 PyPI 最新版已提供这些命令。全新接入可以先查询当前发行版本：
 
 ```sh
 uvx --from shinnjyuu-echo-kit@latest echo-kit --version
 ```
 
-拿到版本号后，后续命令固定使用该版本。以下以 `0.1.2` 为例，实际执行时替换为选定版本：
+拿到符合要求的版本后，用其完成一次安装。`VERSION` 是实际版本号的占位符：
 
 ```sh
-uv tool install "shinnjyuu-echo-kit==0.1.2"
+uv tool install "shinnjyuu-echo-kit==VERSION"
 echo-kit --version
 echo-kit --help
 ```
@@ -35,22 +35,32 @@ echo-kit --help
 如果已有其他版本、无法修改工具安装或命令不在 PATH，可使用固定版本的独立调用：
 
 ```sh
-uvx --from shinnjyuu-echo-kit@0.1.2 echo-kit --help
+uvx --from shinnjyuu-echo-kit@VERSION echo-kit --help
 ```
 
-采用独立调用时，将下文所有 `echo-kit` 命令替换为同一个固定版本前缀。不要在一轮接入或验收中反复解析 `latest`，也不要中途升级正在使用的工具。
+采用独立调用时，初始化阶段的 `echo-kit` 使用这个版本前缀。配置好第 4 节的项目入口后，后续任务统一使用 `python echo-kit.py`，无需在各文档和命令中重复写版本号。
 
 需要从源码安装时，可以使用官方仓库的指定版本，例如：
 
 ```sh
-uv tool install "git+https://github.com/shinnjyuu/echo-kit.git@v0.1.2"
+uv tool install "git+https://github.com/shinnjyuu/echo-kit.git@vVERSION"
 ```
 
 源码安装需要 Git；也支持从本地 Kit 源码目录执行 `uv tool install .`，或安装已取得的 wheel。记录来源、版本，源码安装还应记录提交。无法获取工具时说明具体阻碍，保留已完成的项目检查结果。
 
-## 3. 读取并安置所选版本的 Skills
+已有 0.1.x 固定入口的项目需要一次迁移：先按旧入口收尾操作，再安装支持新入口的版本。保留已有团队版本约定，按本轮迁移授权更新入口；不要只升级全局安装后宣称旧的 `uvx ...==0.1.x` 调用已经升级。迁移步骤见[更新机制](docs/updates.md#已有项目迁移)。
 
-从已选定的工具版本导出 Skills；这样读取到的接入规则和协议与实际运行版本一致。下文的 `EMPTY_SKILLS_DIR`、`WORKSPACE`、`CASE`、`RUN_ID` 都是占位符，执行前替换为实际路径或名称。
+## 3. 读取所选版本的 Skills
+
+直接通过 CLI 读取当前包内文档，无需工作区或网络。下文的 `EMPTY_SKILLS_DIR`、`WORKSPACE`、`TASK_ID`、`CASE`、`RUN_ID` 都是占位符，执行前替换为真实值。
+
+```sh
+echo-kit --json skills list
+echo-kit --json skills show echo-init
+echo-kit --json protocol show
+```
+
+JSON 包含工具版本、文档摘要和正文。任务开始后，改用 `python echo-kit.py --task TASK_ID --json skills show NAME` 等入口，确保读取的是任务锁定版本。需要文件供助手发现时，也可导出：
 
 ```sh
 echo-kit skills export "EMPTY_SKILLS_DIR"
@@ -64,12 +74,13 @@ echo-kit skills export "EMPTY_SKILLS_DIR"
 | `echo-lab/SKILL.md` | 运行、重复和比较实验 |
 | `echo-workbench/SKILL.md` | 管理服务，执行 API 或浏览器验收 |
 | `references/protocol.md` | 配置与子进程协议，和仓库 `docs/protocol.md` 同步 |
+| `.echo-kit-skills.json` | 导出版本与文件摘要，用于识别旧副本和项目修改 |
 
 先阅读导出的 `echo-init/SKILL.md` 和 `references/protocol.md`，再配置工作区或编写适配器。无需启用所有能力；Lab 和 Workbench 可以独立使用。
 
 Skills 的安装位置遵循当前 AI 助手与目标项目的约定，导出命令不会修改助手配置。如果目标 Skills 目录已有内容，先导出到单独的空目录，再检查差异、保留已有修改并合并所需文件。保持各 Skill 与 `references/protocol.md` 的相对路径关系，不能只复制一个 `SKILL.md`。
 
-GitHub 文档、工具内置文档和项目导出副本分别更新。仓库推送不会自动改变已安装或缓存的工具；切换到包含修改的已发布版本后，才能导出该版本的新文档。项目中的旧副本仍需按上述方式比较、合并，并记录所用版本。不要把仓库最新说明当成旧版 CLI 已支持的行为。
+用 `echo-kit --json skills status EMPTY_SKILLS_DIR` 检查已有导出目录的版本和本地修改。旧版导出缺少清单时会返回 `unverified`，不会覆盖文件。仓库推送、项目选定版本和导出副本分别更新；项目副本仍需比较、合并。不要把仓库最新说明当成旧版 CLI 已支持的行为。
 
 ## 4. 配置工作区与最小用例
 
@@ -80,6 +91,14 @@ echo-kit --workspace "WORKSPACE" workspace init
 ```
 
 初始化只建立配置骨架、`echo/` 目录和忽略规则，还需要接入具体用例。根据项目实际情况选一个小而有价值的验证目标，例如已有纯函数测试，或一个本地 API 的响应内容检查。
+
+在目标工作区配置统一入口：
+
+```sh
+echo-kit --workspace "WORKSPACE" --json updates setup --policy patch
+```
+
+它生成应纳入项目版本管理的 `echo-kit.py` 和 `echo-kit.lock.json`。后者是项目版本与更新策略的唯一来源。`patch` 在新任务开始时允许同一主、次版本内的稳定更新；严格固定版本的团队使用 `manual`，明确接受跨次版本更新时才选择 `latest`。已有入口被团队修改时会保留并报告冲突。该命令不重写项目的 README、AGENTS 或适配器。
 
 | 需要的能力 | 接入方式 |
 | --- | --- |
@@ -96,24 +115,32 @@ echo-kit --workspace "WORKSPACE" workspace init
 
 ## 5. 执行最小验证并检查证据
 
-先检查配置和资源占用，再执行选定的用例。全局参数必须置于模块名前；选择已有环境时，在模块名前加 `--environment NAME`，本轮相关命令使用同一个环境：
+在工作区根目录开始一轮任务；使用环境覆盖时在 `task` 前加 `--environment NAME`：
 
 ```sh
-echo-kit --workspace "WORKSPACE" --json workspace check
-echo-kit --json operations list
-echo-kit --workspace "WORKSPACE" --json services status
+python echo-kit.py --json task start --label "首次接入验证"
+```
+
+命令会检查发行版本，按项目策略准备和验证候选，再锁定本轮版本、环境和文档摘要。返回的 `id` 即 `TASK_ID`，也会给出可直接使用的 `command_prefix`。有未结束任务或待收尾操作时延期升级；联网或候选检查失败会保留已选版本。候选检查只覆盖包协议和工作区配置，业务用例仍需下面的实际验证。
+
+本轮所有工作命令使用同一个 `--task TASK_ID`。不要因一条 CLI 命令结束就新建任务，不要在同一轮反复使用 `latest`。恢复会话时用 `task list` / `task show TASK_ID` 找回原任务。先检查配置和资源占用：
+
+```sh
+python echo-kit.py --task TASK_ID --json workspace check
+python echo-kit.py --task TASK_ID --json operations list
+python echo-kit.py --task TASK_ID --json services status
 ```
 
 对于本地实验，执行：
 
 ```sh
-echo-kit --workspace "WORKSPACE" --actor "首次接入验证" --json lab run CASE --repeat 1
+python echo-kit.py --task TASK_ID --json lab run CASE --repeat 1
 ```
 
 对于需要准备服务、认证或浏览器的验收，改用：
 
 ```sh
-echo-kit --workspace "WORKSPACE" --actor "首次接入验证" --json verify run CASE
+python echo-kit.py --task TASK_ID --json verify run CASE
 ```
 
 Lab 不自动准备服务、登录或浏览器；Verify 只准备当前用例声明的能力。Kit 不会在用例结束时主动停止托管服务，以便后续复用；跨宿主退出的行为遵循下方的生命周期约定。默认运行一次，仅在实验目的或用户要求需要时增加次数。
@@ -123,11 +150,11 @@ Lab 不自动准备服务、登录或浏览器；Verify 只准备当前用例声
 从结果取得运行 ID，读取记录和报告：
 
 ```sh
-echo-kit --workspace "WORKSPACE" --json runs show RUN_ID
-echo-kit --workspace "WORKSPACE" --json runs report RUN_ID
+python echo-kit.py --task TASK_ID --json runs show RUN_ID
+python echo-kit.py --task TASK_ID --json runs report RUN_ID
 ```
 
-默认输出在 `.echo-kit/runs/`，可通过配置的 `output` 改变。检查实际执行的范围、必需检查和产物；配置检查通过不能作为业务验收通过的证据。退出码 0 表示已执行范围成功，1 表示检查失败，2 表示受阻或未验证，130 表示中断。`services status` 成功只说明查询成功，还需看每个实例的 `ready`。
+默认输出在 `.echo-kit/runs/`，可通过配置的 `output` 改变。记录包含工具版本、文档摘要、任务 ID 和任务开始时的更新检查结果。检查实际执行的范围、必需检查和产物；配置检查通过不能作为业务验收通过的证据。退出码 0 表示已执行范围成功，1 表示检查失败，2 表示受阻或未验证，130 表示中断。`services status` 成功只说明查询成功，还需看每个实例的 `ready`。
 
 需要比较结果时使用 `lab compare CASE --variants baseline candidate --repeat 3` 或 `runs compare LEFT RIGHT`，变体和运行 ID 必须来自项目实际配置或记录。HTTP 成功、页面显示、文件下载和文件内容正确是不同的检查；报告中分别说明。
 
@@ -150,6 +177,14 @@ echo-kit --workspace "WORKSPACE" --json runs report RUN_ID
 ## 7. 留下后续入口并交付
 
 在目标项目已有的 AI 指引或使用文档中补充入口，保留原有内容。记录选定版本及调用方式、工作区、已接入的用例、Skills 位置、报告位置，以及环境和认证的必要前提。后续会话应能据此复用现有配置。
+
+留下 `python echo-kit.py` 入口与“开始任务、沿用任务 ID、结束任务”的工作方式，版本号由 `echo-kit.lock.json` 维护。工作和关联收尾完成后执行：
+
+```sh
+python echo-kit.py --json task finish TASK_ID
+```
+
+有关联的未完成运行或仍在执行的命令时会拒绝结束。任务结束不停止为后续复用而保留的服务。不完整的任务保留 ID 交接，不删除任务文件来解锁升级。提交入口、版本文件或策略变更仍遵循本轮已有授权。
 
 完成时分别说明：
 

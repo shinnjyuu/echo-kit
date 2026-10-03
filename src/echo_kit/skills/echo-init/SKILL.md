@@ -7,9 +7,13 @@ description: Initialize or maintain Echo Kit project adapters when the user expl
 
 Use only for explicit onboarding requests. Inspect existing build, test, CI and launch files before generating anything. Discover repository paths from context; ask only about unresolved targets, authentication or allowed environments.
 
-Run `echo-kit --help`. Initialize a workspace with `echo-kit --workspace PATH workspace init` only if absent. Exported skills do not initialize projects automatically. Read [the protocol](../references/protocol.md) before writing adapters.
+Run `echo-kit --help`. Read `echo-kit --json skills show echo-init` and `echo-kit --json protocol show` for the running package's documentation without a workspace or network. Initialize with `echo-kit --workspace PATH workspace init` only if absent. Exported skills do not initialize projects automatically.
 
-Reuse existing commands. Shared `echo-kit.toml` and `echo/` scripts belong in Git; local absolute paths and credential references belong in ignored `.echo-kit/local.toml`. Never place secrets in commands, shared configuration or reports. Pin the team's tested Kit version.
+For onboarding with Kit >= 0.2.0, run `echo-kit --workspace PATH --json updates setup --policy patch` to create the project entrypoint and single version file. Respect existing team pins: use `manual` for strict version policies, and migrate old fixed invocations only within the requested scope after their operations finish. Preserve project-owned entrypoint edits. See [tool updates and pinned tasks](../references/protocol.md#tool-updates-and-pinned-tasks) for policies, migration and offline behavior.
+
+Start a task from the workspace with `python echo-kit.py --json task start --label "purpose"`. Reuse its returned `command_prefix` for all work and documentation reads, including across resumed conversations. End with `python echo-kit.py --json task finish ID` after associated cleanup. Do not create a new task after every command, leave completed tasks open, or remove records to bypass deferred updates. Record the task ID when handing off incomplete work.
+
+Reuse existing commands. Shared `echo-kit.toml`, `echo/` scripts, `echo-kit.py` and `echo-kit.lock.json` belong in project version control; local absolute paths and credential references belong in ignored `.echo-kit/local.toml`. Never place secrets in commands, shared configuration or reports. Keep version selection in the version file instead of repeating it in every instruction. Read task-version Skills directly; use `skills status DIR` to inspect exported copies, and merge updates without overwriting team rules.
 
 Define only requested capabilities. Projects may be in separate directories; remote services use `mode="external"`. Lab needs neither services nor browsers. Derive service names, middleware configuration and authentication workflows from the target project instead of copying assumptions from another project.
 

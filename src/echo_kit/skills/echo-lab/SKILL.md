@@ -5,6 +5,8 @@ description: Run and compare Echo Kit experiments when the user explicitly reque
 
 # Echo Lab
 
+When the project has `echo-kit.py`, start or resume a task and use its returned `command_prefix` in place of `echo-kit --workspace PATH` below. Read Skills via that prefix and `--json skills show NAME` so instructions match the task version. Start once per logical task; finish with `python echo-kit.py --json task finish ID` after runs and cleanup complete, or retain the ID for handoff. Updates are selected only between tasks under project policy. See [task and update rules](../references/protocol.md#tool-updates-and-pinned-tasks). A legacy pinned entry needs a separate one-time migration; do not silently override it during an experiment.
+
 Use the project's existing case and interpreter. Read [the protocol](../references/protocol.md) when adding a case. State the hypothesis and required evidence. Prefer the smallest experiment that answers the user's question; default repeat is one, increase only with a reason or request.
 
 `echo-kit --workspace PATH --json lab run CASE --repeat 1`

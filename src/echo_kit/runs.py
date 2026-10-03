@@ -39,6 +39,7 @@ def report(path):
 <p>{esc(r.get('reason', ''))}</p><h2>Checks</h2><table><tr><th>Check</th><th>Status</th><th>Detail</th></tr>{rows}</table>
 <h2>Timeline</h2><ol>{events}</ol><h2>Artifacts</h2><ul>{''.join(links)}</ul>
 <h2>Versions</h2><pre>{esc(json.dumps(r.get('versions', {}), indent=2))}</pre>
+<h2>Echo Kit</h2><pre>{esc(json.dumps({'tool': r.get('tool'), 'task_id': r.get('task_id'), 'update': r.get('update')}, indent=2))}</pre>
 <h2>Operation</h2><pre>{esc(json.dumps({'id': r.get('operation_id'), 'resources': r.get('resources', {}), 'occupants': r.get('occupants', [])}, indent=2))}</pre>
 <h2>Running services</h2><pre>{esc(json.dumps(r.get('services', {}), indent=2))}</pre>
 <p>Recorded evidence is not deterministic replay. Review artifacts for business data before sharing.</p></html>'''

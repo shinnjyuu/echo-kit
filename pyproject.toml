@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shinnjyuu-echo-kit"
-version = "0.1.2"
+version = "0.2.0"
 description = "Reusable experiments and verification workflows for AI coding assistants"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dependencies = ["psutil>=6,<8", "filelock>=3.16,<4", "keyring>=25,<26", "playwright==1.63.0"]
+dependencies = ["psutil>=6,<8", "filelock>=3.16,<4", "keyring>=25,<26", "playwright==1.63.0", "packaging>=24,<27"]
 
 [project.scripts]
 echo-kit = "echo_kit.cli:main"

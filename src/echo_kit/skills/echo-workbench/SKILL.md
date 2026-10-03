@@ -5,6 +5,8 @@ description: Manage Echo Kit services or perform API and browser verification wh
 
 # Echo Workbench
 
+When the project has `echo-kit.py`, start or resume a task and use its returned `command_prefix` for every work command and `--json skills show echo-workbench` / `--json protocol show`. The task pins execution and documentation versions across CLI calls. Finish with `python echo-kit.py --json task finish ID` after associated work and cleanup, or retain the ID for handoff. An individual command ending does not permit an upgrade; project policy is applied between tasks. See [task and update rules](../references/protocol.md#tool-updates-and-pinned-tasks). Legacy fixed entries require a one-time migration, not a silent change of their version during acceptance work.
+
 Inspect workspace/environment and the requested case first. Read [the protocol](../references/protocol.md) before changing adapters. Start only declared dependencies; a frontend may use remote APIs and QA may need no local business services.
 
 Use `services status`, `services up NAME`, `auth login NAME`, `browser up` independently as needed. `verify run CASE` prepares only that case's declared capabilities. Global options precede the module.
