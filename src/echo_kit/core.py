@@ -64,13 +64,8 @@ class Workspace:
         self.state = self.root / '.echo-kit'
         self.runs = self.path(self.cfg.get('output', '.echo-kit/runs'))
         self.identity = hashlib.sha256(str(self.root).encode()).hexdigest()[:20]
-        from .tasks import CURRENT_TASK
-        task = CURRENT_TASK.get()
-        if task and Path(task['workspace']).resolve() != self.root:
-            task = None
-        self.task_id = task['id'] if task else None
-        self.actor = task.get('label') if task else None
-        self.tool_update = task.get('update') if task else None
+        self.actor = None
+        self.tool_update = None
 
     def path(self, value):
         return (self.root / value).resolve()
@@ -134,7 +129,7 @@ def new_run(ws, case, kind, inputs=None):
     path.mkdir(parents=True)
     record = {'id': rid, 'case': case, 'kind': kind, 'environment': ws.environment,
               'started': time.time(), 'status': 'running', 'versions': versions(ws),
-              'tool': tool_info(), 'task_id': ws.task_id, 'update': ws.tool_update,
+              'tool': tool_info(), 'update': ws.tool_update,
               'input_keys': sorted((inputs or {}).keys()), 'checks': [], 'events': []}
     save(path / 'run.json', record)
     return path, record

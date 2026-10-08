@@ -27,17 +27,9 @@ echo-kit --json docs check
 
 `list` 只返回入口、归属、存在性和 Git 状态。`show private` 是显式读取个人正文的入口，内容会返回调用者；Kit 不自动把正文写入报告或持久化日志。调用者也应避免把输出重定向到共享文件。缺失的私有入口可选；缺失的已配置共享文件检查失败。
 
-尚未接入的旧工作区返回 `not_configured` 和接入提示，不会自动生成文件。`workspace check` 和 `doctor` 提供 `documents` 摘要，但不把文档检查结果加入业务或升级兼容性检查。
+尚未接入的旧工作区返回 `not_configured` 和接入提示，不会自动生成文件。`workspace check` 和 `doctor` 提供 `documents` 摘要，但不把文档检查结果加入业务检查。
 
-通过任务入口使用时，沿用任务固定的 Kit 版本：
-
-```sh
-python echo-kit.py --task TASK_ID --json docs list
-python echo-kit.py --task TASK_ID --json docs show shared
-python echo-kit.py --task TASK_ID --json docs check
-```
-
-`TASK_ID` 替换为真实任务 ID。固定的是工具版本，不是项目文档快照；文档仍由项目维护。0.2.x 的 `patch` 策略不会自动跨到 0.3.0，需要按既有更新流程显式选择新版本。
+0.4.0 起直接调用上述命令，默认检查并使用最新稳定版；加 `--offline` 可读取当前可用版本的文档而不联网。项目文档是项目自己维护的文件，不是工具版本快照。旧版项目入口需按[迁移说明](updates.md#已有项目迁移)主动更新。
 
 ## 保留已有目录结构
 

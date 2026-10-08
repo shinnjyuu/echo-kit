@@ -19,7 +19,7 @@
 
 CLI 提供的文档必须来自**当前运行版本**的包资源，与该版本的执行行为匹配；不得在运行旧版工具时静默拉取 GitHub `main` 的最新说明。
 
-`echo-kit skills export EMPTY_DIR` 将三个 Skill、协议副本和版本摘要清单导出到不存在或为空的目录；无需先初始化工作区。仓库根目录的 `README.ai.md` 和验证文档不属于这项导出内容。
+`echo-kit --offline skills export EMPTY_DIR` 将三个 Skill、协议副本和版本摘要清单导出到不存在或为空的目录；无需先初始化工作区。仓库根目录的 `README.ai.md` 和验证文档不属于这项导出内容。
 
 0.2.0 起实现以下只读入口：
 
@@ -31,34 +31,34 @@ echo-kit skills status EXPORTED_DIR
 echo-kit --json runtime info
 ```
 
-这些入口和 `skills export` 共用包内资源；无需初始化工作区或联网即可读取。`--json` 返回版本、文档摘要及正文；`skills status` 检查导出副本并保留项目修改。通过 `--task TASK_ID` 使用时，入口路由到任务锁定的工具版本。
+这些入口和 `skills export` 共用包内资源；无需初始化工作区或联网即可读取。`--json` 返回版本、文档摘要及正文；`skills status` 检查导出副本并保留项目修改。0.4.0 起普通命令先检查最新版；复验本次安装包时使用 `--offline`，确保正文属于指定发行版本。
 
 ## 从修改到安装包的验证
 
-修改项目文档分层能力时，还需验证 `docs setup/list/show/check`、任务固定版本下的入口、私有正文不被诊断或报告回显，以及安装包中的 Skill/协议和实现一致。新版本声明不会自动迁移已有项目文档或替换项目导出副本。
+修改项目文档分层能力时，还需验证 `docs setup/list/show/check`、直接命令和旧入口迁移、私有正文不被诊断或报告回显，以及安装包中的 Skill/协议和实现一致。新版本声明不会自动迁移已有项目文档或替换项目导出副本。
 
 1. 更新实际 Skill 资源；修改公开协议时，确认仓库正文与随包副本完全一致。同步受影响的 CLI 行为、文档入口、帮助和示例。
 2. 运行相关核心检查和 Skill 校验。新增 CLI 文档入口时验证实际输出与包资源一致，导出仍保留参考资料的相对路径，已有项目文件不会被覆盖。
 3. 为本轮发布选择新版本，同步修改 `pyproject.toml` 与 `src/echo_kit/__init__.py`，运行 `uv lock`、`uv run pytest`、`uv build --no-sources`。
-4. 在源码目录之外的独立环境安装本轮构建的 wheel，检查版本、帮助及实际支持的文档入口。将导出的 Skill 和协议与本轮预期内容比较，并验证生成的项目入口、任务开始与结束、运行记录中的工具版本。涉及升级逻辑时用隔离的候选安装包验证切换和失败保留旧版。仅从源码执行成功不足以证明安装包交付正确。
+4. 在源码目录之外的独立环境安装本轮构建的 wheel，检查版本、帮助及实际支持的文档入口。将导出的 Skill 和协议与本轮预期内容比较，并验证旧入口迁移及运行记录中的实际工具版本。涉及更新逻辑时用隔离的候选包验证启动转交、准备失败回退、业务失败不重跑。仅从源码执行成功不足以证明安装包交付正确。
 5. 按本轮已有授权提交、推送并发布。若本轮范围仅包括修改文档或普通推送，交付时明确标记“随包文档待发版”，不要声称已安装用户已经获得更新。
 6. 发布后，从仓库外使用新发布的具体版本复验版本号和文档内容。确认包可获取且包含本轮修改后，才报告随包文档已发布。
 
-首次查询可用版本可用 `uvx --from shinnjyuu-echo-kit@latest echo-kit --version`；一轮接入或验收随后固定版本。下面的 `NEW_VERSION` 和 `EMPTY_DIR` 是占位符，需替换为本次实际发布版本和空目录：
+首次查询可用版本可用 `uvx --from shinnjyuu-echo-kit@latest echo-kit --version`；日常使用不固定项目版本，发布复验则显式选择具体版本并加 `--offline`。下面的 `NEW_VERSION` 和 `EMPTY_DIR` 是占位符，需替换为本次实际发布版本和空目录：
 
 ```sh
 uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --version
 uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --help
-uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit skills export EMPTY_DIR
+uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --offline skills export EMPTY_DIR
 ```
 
 交付时分别说明仓库提交、已发布包版本、已验证的文档入口，以及项目导出副本是否完成更新。发布验证和用户升级是不同步骤。
 
 ## 已安装工具与项目副本怎样更新
 
-GitHub 推送不会自动更新已经安装或缓存的工具。0.2.0 起，已配置[项目入口](updates.md)的项目在 `task start` 时自动检查、按策略验证候选并更新选定版本，后续通过入口调用具体版本。它使用隔离工具环境，不替换全局安装或业务解释器。旧版固定调用仍需要一次迁移；发版不会自动改写旧项目的命令。
+GitHub 推送不等于发布。0.4.0 起普通命令启动时检查最新稳定发行版，在隔离环境准备并执行；离线或准备失败保留当前可用版。此机制不替换全局安装，旧固定入口仍需[一次迁移](updates.md#已有项目迁移)。
 
-已经导出到业务项目的 Skills 是独立副本。升级安装包不会覆盖它们，也不会修改项目适配脚本和配置。需要更新时，先用选定版本导出到新的空目录，比较差异，保留团队修改并合并所需内容，保持 Skill 与 `references/protocol.md` 的相对路径；在项目使用入口记录采用的工具版本。
+已经导出到业务项目的 Skills 是独立副本。升级安装包不会覆盖它们，也不会修改项目适配脚本和配置。需要更新时，先用选定版本导出到新的空目录，比较差异，保留团队修改并合并所需内容，保持 Skill 与 `references/protocol.md` 的相对路径；验证记录保留实际执行版本。
 
 ## PyPI 发布配置与触发方式
 

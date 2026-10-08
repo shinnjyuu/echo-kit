@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from echo_kit import __version__, project_docs as docs, tasks
+from echo_kit import __version__, project_docs as docs
 from echo_kit.cli import main
 from echo_kit.core import Workspace, init_workspace
 
@@ -183,21 +183,18 @@ def test_symlink_outside_is_not_read(ws, tmp_path):
     assert 'PRIVATE SENTINEL' not in json.dumps(checked)
 
 
-def test_cli_task_entry_and_advisory_workspace_check(ws, capsys):
+def test_cli_direct_entry_and_advisory_workspace_check(ws, capsys):
     ready(ws)
-    tasks.setup(ws)
-    task = tasks.start(ws, 'document check', no_network=True)
-    output = subprocess.run([sys.executable, str(ws.root / 'echo-kit.py'), '--task', task['id'],
+    output = subprocess.run([sys.executable, '-m', 'echo_kit', '--workspace', str(ws.root),
                              '--offline', '--json', 'docs', 'show', 'shared'], capture_output=True, text=True)
     assert output.returncode == 0, output.stderr + output.stdout
     assert json.loads(output.stdout)['scope'] == 'shared'
-    assert task['version'] == __version__
+    assert not (ws.root / 'echo-kit.lock.json').exists()
     shared(ws, '[bad](/home/user/private.md)')
     assert main(['--workspace', str(ws.root), '--offline', '--json', 'workspace', 'check']) == 0
     assert json.loads(capsys.readouterr().out)['documents']['configured']
     assert main(['--workspace', str(ws.root), '--json', 'docs', 'check']) == 1
     capsys.readouterr()
-    tasks.finish(ws, task['id'])
 
 
 def test_custom_entries_and_private_graph(ws):

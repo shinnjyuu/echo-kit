@@ -9,7 +9,6 @@ from .core import KitError, read, safe_name, save
 
 PACKAGE = 'shinnjyuu-echo-kit'
 MANIFEST = '.echo-kit-skills.json'
-RUNTIME_PROTOCOL = 1
 
 
 def resources():
@@ -40,7 +39,7 @@ def manifest():
 
 def tool_info():
     return {'package': PACKAGE, 'version': __version__, 'documentation_version': __version__,
-            'documentation_digest': manifest()['digest'], 'runtime_protocol': RUNTIME_PROTOCOL}
+            'documentation_digest': manifest()['digest']}
 
 
 def catalog():

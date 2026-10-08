@@ -18,7 +18,6 @@ def parser():
     p.add_argument('--workspace', default='.')
     p.add_argument('--environment')
     p.add_argument('--actor')
-    p.add_argument('--task', help='Use the version and environment pinned by task start')
     p.add_argument('--offline', action='store_true', help='Use cached update information and runtimes only')
     p.add_argument('--json', action='store_true')
     top = p.add_subparsers(dest='module', required=True)
@@ -29,8 +28,7 @@ def parser():
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
                             'docs': ['setup', 'list', 'show', 'check'],
-                            'runtime': ['info'], 'updates': ['check', 'setup', 'apply'],
-                            'task': ['start', 'list', 'show', 'finish']}.items():
+                            'runtime': ['info'], 'updates': ['check', 'setup']}.items():
         group = top.add_parser(module, **({'help': 'Discover and check shared/private project documents'}
                                          if module == 'docs' else {}))
         sub = group.add_subparsers(dest='action', required=True)
@@ -45,15 +43,6 @@ def parser():
             elif module == 'updates':
                 if action == 'check':
                     cmd.add_argument('--refresh', action='store_true', help='Bypass the release-check cache')
-                elif action == 'setup':
-                    cmd.add_argument('--policy', choices=['manual', 'patch', 'latest'])
-                elif action == 'apply':
-                    cmd.add_argument('--version', dest='target_version', help='Explicit stable release, including rollback')
-            elif module == 'task':
-                if action == 'start':
-                    cmd.add_argument('--label', help='What this task is doing')
-                elif action in ('show', 'finish'):
-                    cmd.add_argument('id')
             elif module == 'operations' and action != 'list':
                 cmd.add_argument('id')
                 if action == 'resolve':
@@ -97,12 +86,7 @@ def dispatch(args):
         return {'status': 'passed', **tool_info()}
     if args.module == 'updates' and args.action == 'check':
         from .updates import check
-        from .tasks import CURRENT_TASK, project_version
-        selection = project_version(Workspace(args.workspace), required=False) if (
-            Path(args.workspace) / 'echo-kit.toml').exists() else None
-        current = (CURRENT_TASK.get() or selection or {}).get('version')
-        return {**check(current, (selection or {}).get('policy', 'manual'), args.refresh, args.offline),
-                'project_version': (selection or {}).get('version')}
+        return check(refresh=args.refresh, no_network=args.offline)
     if args.module == 'operations':
         from .operations import Journal
         journal = Journal()
@@ -112,29 +96,16 @@ def dispatch(args):
             return journal.show(args.id)
         return journal.resolve(args.id, args.note)
     ws = Workspace(args.workspace, args.environment)
-    ws.actor = args.actor or ws.actor
+    ws.actor = args.actor
+    ws.tool_update = getattr(args, "_update", None)
     if args.module == 'docs':
         from . import project_docs
         if args.action == 'show':
             return project_docs.show(ws, args.scope)
         return getattr(project_docs, 'catalog' if args.action == 'list' else args.action)(ws)
     if args.module == 'updates':
-        from . import tasks
-        if args.action == 'setup':
-            return tasks.setup(ws, args.policy)
-        return tasks.apply(ws, args.target_version, args.offline)
-    if args.module == 'task':
-        from . import tasks
-        if args.action == 'start':
-            return tasks.start(ws, args.label, args.offline)
-        if args.action == 'list':
-            return {'status': 'passed', 'tasks': tasks.list_tasks(ws)}
-        if args.action == 'show':
-            return {'status': 'passed', **tasks.load_task(ws, args.id)}
-        return tasks.finish(ws, args.id)
-    if args.module in ('workspace', 'doctor', 'lab', 'verify') and not ws.tool_update:
-        from .updates import check
-        ws.tool_update = check(no_network=args.offline)
+        from .migration import setup
+        return setup(ws)
     if args.module in ('workspace', 'doctor'):
         checks = []
         for name in ws.cfg.get('projects', {}):
@@ -152,7 +123,7 @@ def dispatch(args):
         from .project_docs import summary
         return {'status': 'passed' if all(c['status'] == 'passed' for c in checks) else 'unverified', 'checks': checks,
                 'documents': summary(ws),
-                'tool': tool_info(), 'update': ws.tool_update, 'task_id': ws.task_id,
+                'tool': tool_info(), 'update': ws.tool_update,
                 'unfinished_runs': [p.parent.name for p in ws.runs.glob('*/active.json')]}
     if args.module == 'runs':
         from .runs import locate, compare, report
@@ -211,50 +182,37 @@ def main(argv=None):
     args = None
     try:
         from . import __version__
-        expected = os.environ.get('ECHO_KIT_EXPECTED_VERSION')
+        expected = os.environ.pop('ECHO_KIT_EXPECTED_VERSION', None)
         if expected and expected != __version__:
-            raise KitError('Resolved tool version differs from the requested task version')
-        # Route before the full parser so an older installed launcher can pass
-        # commands introduced by a newer task runtime without interpreting them.
-        route_parser = argparse.ArgumentParser(add_help=False)
-        route_parser.add_argument('--workspace', default='.')
-        route_parser.add_argument('--environment')
-        route_parser.add_argument('--task')
+            raise KitError('Resolved tool version differs from the prepared version')
+        from . import updates
+        route_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+        for name in ('--workspace', '--environment', '--actor'):
+            route_parser.add_argument(name)
         route_parser.add_argument('--offline', action='store_true')
+        route_parser.add_argument('--json', action='store_true')
+        route_parser.add_argument('module', nargs='?')
+        route_parser.add_argument('action', nargs='?')
         route, _ = route_parser.parse_known_args(raw)
-        task_ws = None
-        if route.task:
-            from . import tasks, updates
-            task_ws = Workspace(route.workspace, route.environment)
-            task = tasks.load_task(task_ws, route.task, open_only=True)
-            if task['version'] != __version__:
-                env = updates.child_environment()
-                env['ECHO_KIT_EXPECTED_VERSION'] = task['version']
-                return subprocess.call(updates.command_prefix(task['version'], route.offline) + raw, env=env)
-            if route.environment is None and task_ws.environment != task['environment']:
-                task_ws = Workspace(route.workspace, task['environment'])
+        if (any(x == '--task' or x.startswith('--task=') or x == '--policy' or x.startswith('--policy=') for x in raw)
+                or route.module == 'task' or (route.module == 'updates' and route.action == 'apply')):
+            raise KitError('Project version tasks and policies were removed. Use echo-kit directly; '
+                           'run updates setup once to migrate an old project entry. Preserve historical records.')
+        diagnostic = (any(x in ('--help', '-h', '--version') for x in raw)
+                      or (route.module, route.action) in (('runtime', 'info'), ('updates', 'check')))
+        discovery = None
+        if not diagnostic:
+            child_code, discovery = updates.startup(raw, route.offline)
+            if child_code is not None:
+                return child_code
         args = parser().parse_args(raw)
-        if args.task:
-            if args.module == 'task' or (args.module == 'updates' and args.action != 'check') or (
-                    args.module == 'workspace' and args.action == 'init'):
-                raise KitError('Manage task lifetimes and update policy outside --task')
-            if args.environment is None and task_ws.environment != Workspace(args.workspace).environment:
-                args.environment = task_ws.environment
-            with tasks.bind(task_ws, args.task):
-                result = dispatch(args)
-        else:
-            result = dispatch(args)
+        args._update = discovery
+        result = dispatch(args)
         code = exit_code(result)
     except (KitError, Timeout, OSError, ValueError, KeyError) as error:
         result, code = {'status': 'blocked', 'error': str(error), **getattr(error, 'details', {})}, 2
     except KeyboardInterrupt:
         result, code = {'status': 'interrupted'}, 130
-    if args is not None and not args.json:
-        records = result if isinstance(result, list) else [result]
-        notices = [r.get('update') for r in records if isinstance(r, dict) and isinstance(r.get('update'), dict)]
-        if notices and notices[0].get('update_available'):
-            print(f"Echo Kit {notices[0]['latest_version']} is available. Start a new task to apply project policy; "
-                  'the current task keeps its version.', file=sys.stderr)
     if (args is not None and args.json) or (args is None and '--json' in raw):
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args is not None and args.module in ('skills', 'protocol') and args.action == 'show' and code == 0:

@@ -1,4 +1,4 @@
-"""Release discovery and isolated, exact-version execution through uv."""
+"""Latest stable release discovery and single-command execution through uv."""
 import json
 import math
 import os
@@ -15,16 +15,14 @@ from packaging.version import InvalidVersion, Version
 
 from . import __version__
 from .core import KitError, read, save
-from .documentation import PACKAGE, RUNTIME_PROTOCOL, tool_info
+from .documentation import PACKAGE
 from .operations import data_root
 
 INDEX = 'https://pypi.org/simple'
 METADATA = 'https://pypi.org/pypi/' + PACKAGE + '/json'
-CACHE_SECONDS = 3600
 ERROR_CACHE_SECONDS = 300
 MAX_METADATA_BYTES = 4 * 1024 * 1024
-MIN_RUNTIME = Version('0.2.0')
-POLICIES = ('manual', 'patch', 'latest')
+MIN_RUNTIME = Version('0.4.0')
 
 
 def offline(requested=False):
@@ -39,7 +37,7 @@ def release_version(value):
         raise KitError('Invalid release version')
     if (parsed.is_prerelease or parsed.is_devrelease or parsed.local or parsed.epoch
             or len(parsed.release) != 3 or parsed < MIN_RUNTIME):
-        raise KitError('Managed tasks require a stable Echo Kit version >= 0.2.0')
+        raise KitError('Automatic execution requires a stable Echo Kit version >= 0.4.0')
     return str(parsed)
 
 
@@ -107,15 +105,13 @@ def _snapshot(refresh=False, no_network=False):
     now = time.time()
     if offline(no_network):
         return saved, 'offline'
-    if not refresh and 0 <= now - saved.get('attempted_at', 0) < (
-            ERROR_CACHE_SECONDS if saved.get('error') else CACHE_SECONDS):
+    if not refresh and saved.get('error') and 0 <= now - saved.get('attempted_at', 0) < ERROR_CACHE_SECONDS:
         return saved, 'cached'
     try:
         root.mkdir(parents=True, exist_ok=True)
         with FileLock(str(root / 'check.lock'), timeout=0):
             saved = cached()
-            if not refresh and 0 <= now - saved.get('attempted_at', 0) < (
-                    ERROR_CACHE_SECONDS if saved.get('error') else CACHE_SECONDS):
+            if not refresh and saved.get('error') and 0 <= now - saved.get('attempted_at', 0) < ERROR_CACHE_SECONDS:
                 return saved, 'cached'
             try:
                 saved = {'releases': fetch_releases(), 'checked_at': now, 'attempted_at': now}
@@ -131,18 +127,13 @@ def _snapshot(refresh=False, no_network=False):
         return saved, 'unavailable'
 
 
-def check(current=None, policy='manual', refresh=False, no_network=False):
+def check(current=None, refresh=False, no_network=False):
     current = current or __version__
-    if policy not in POLICIES:
-        raise KitError('Unknown update policy')
     snapshot, source = _snapshot(refresh, no_network)
     versions = compatible_versions(snapshot.get('releases', {}))
-    running = Version(current)
-    newer = [v for v in versions if v > running]
-    allowed = [v for v in newer if policy == 'latest' or (policy == 'patch' and v.release[:2] == running.release[:2])]
-    return {'status': 'passed', 'current_version': current, 'running_version': __version__, 'policy': policy,
-            'latest_version': str(versions[-1]) if versions else None,
-            'update_available': bool(newer), 'candidate_version': str(allowed[-1]) if allowed else None,
+    latest = str(versions[-1]) if versions else None
+    return {'status': 'passed', 'current_version': current, 'running_version': __version__,
+            'latest_version': latest, 'update_available': bool(latest and Version(latest) > Version(current)),
             'source': source, 'checked_at': snapshot.get('checked_at'),
             'attempted_at': snapshot.get('attempted_at'), 'error': snapshot.get('error'),
             'stale': source in ('offline', 'unavailable', 'busy') or bool(snapshot.get('error'))}
@@ -170,39 +161,55 @@ def child_environment():
     # modify the user's uv configuration or the business interpreter.
     for name in ('PYTHONPATH', 'UV_INDEX', 'UV_INDEX_URL', 'UV_EXTRA_INDEX_URL', 'UV_DEFAULT_INDEX',
                  'UV_FIND_LINKS', 'UV_NO_INDEX', 'UV_CONSTRAINT', 'UV_OVERRIDE', 'UV_CONFIG_FILE',
-                 'ECHO_KIT_EXPECTED_VERSION'):
+                 'ECHO_KIT_EXPECTED_VERSION', 'ECHO_KIT_FORWARDED_VERSION'):
         env.pop(name, None)
     return env
 
 
-def _json_command(version, args, cwd, no_network=False, refresh=False):
-    try:
-        env = child_environment()
-        env['ECHO_KIT_EXPECTED_VERSION'] = version
-        result = subprocess.run(command_prefix(version, no_network, refresh) + args, cwd=cwd,
-                                env=env, capture_output=True, text=True, encoding='utf-8', timeout=120)
-        if result.returncode:
-            raise KitError('Candidate command failed; the selected project version was not changed')
-        return json.loads(result.stdout)
-    except (OSError, subprocess.TimeoutExpired, ValueError):
-        raise KitError('Candidate could not be prepared or returned invalid output; existing version retained')
+# Internal subprocess guard, not a project setting or version policy.
+FORWARDED = 'ECHO_KIT_FORWARDED_VERSION'
 
 
-def probe(version, ws, no_network=False):
+def probe(version, no_network=False):
     version = release_version(version)
-    info = tool_info() if version == __version__ else _json_command(
-        version, ['--json', 'runtime', 'info'], ws.root, no_network, refresh=True)
-    if not isinstance(info, dict) or info.get('package') != PACKAGE or info.get('version') != version or (
-            info.get('runtime_protocol') != RUNTIME_PROTOCOL or info.get('documentation_version') != version
-            or not isinstance(info.get('documentation_digest'), str)
-            or len(info['documentation_digest']) != 64
-            or any(c not in '0123456789abcdef' for c in info['documentation_digest'])):
-        raise KitError('Candidate does not support the managed-task protocol')
-    # Read-only configuration validation: no services, login or business case.
-    args = ['--workspace', str(ws.root)]
-    if ws.environment in ws.cfg.get('environments', {}):
-        args += ['--environment', ws.environment]
-    result = _json_command(version, args + ['--offline', '--json', 'workspace', 'check'], ws.root, no_network)
-    if not isinstance(result, dict) or result.get('status') != 'passed':
-        raise KitError('Candidate workspace check failed; existing version retained')
+    env = child_environment()
+    env[FORWARDED] = version
+    env['ECHO_KIT_EXPECTED_VERSION'] = version
+    try:
+        completed = subprocess.run(command_prefix(version, no_network, refresh=not no_network) +
+                                   ['--json', 'runtime', 'info'], env=env, capture_output=True,
+                                   text=True, encoding='utf-8', timeout=120)
+        info = json.loads(completed.stdout)
+        if completed.returncode or not isinstance(info, dict) or info.get('package') != PACKAGE or info.get('version') != version:
+            raise KitError('New release could not start with the expected version')
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        raise KitError('New release preparation failed')
     return info
+
+
+def startup(raw, no_network=False):
+    """Return (child exit code or None, discovery). Never retry a business command."""
+    forwarded = os.environ.pop(FORWARDED, None)
+    if forwarded:
+        if forwarded != __version__:
+            raise KitError('Forwarded runtime does not match the prepared version')
+        return None, {'source': 'forwarded', 'running_version': __version__, 'stale': False}
+    discovery = check(no_network=no_network)
+    if discovery['stale']:
+        print(f'Echo Kit: latest release not confirmed ({discovery["source"]}); using {__version__}.', file=sys.stderr)
+        return None, discovery
+    if not discovery['update_available']:
+        return None, discovery
+    target = discovery['latest_version']
+    try:
+        probe(target)
+        command = command_prefix(target, no_network=True)
+    except KitError as error:
+        discovery = {**discovery, 'preparation_failed': True, 'preparation_error': str(error)}
+        print(f'Echo Kit: could not prepare {target} ({error}); using {__version__}.', file=sys.stderr)
+        return None, discovery
+    env = child_environment()
+    env[FORWARDED] = target
+    env['ECHO_KIT_EXPECTED_VERSION'] = target
+    # Preparation ended above. From this point failures are returned without fallback.
+    return subprocess.call(command + raw, env=env), discovery
