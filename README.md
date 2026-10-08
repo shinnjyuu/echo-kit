@@ -1,5 +1,7 @@
 # Echo Kit
 
+**简体中文** | [English](README.en.md)
+
 **让 AI 为你的项目做实验、查问题、验收结果，并把这些过程留下来反复使用。**
 
 Echo Kit 是一套供 AI 编程助手调用的工具。它帮助 AI 复用项目的启动和测试流程，执行检查，并留下结果、日志和文件等证据。换一个会话或换一位同事，也能沿用项目里已经整理好的验证方法。
@@ -99,6 +101,22 @@ Echo Kit 0.3.0 起支持区分团队共享文档与个人私有文档：共享�
 
 ## 多个服务一起启动
 
-0.5.0 起，`echo-kit services up` 默认最多同时启动 4 个服务，无需让 AI 一条一条执行。已有服务会复用，失败会保留已启动服务并报告原因。`services up --jobs 1` 可串行排障，默认并发数可通过 `[service_startup] concurrency = 4` 设置。
+0.6.0 起，`echo-kit services up` 默认同时启动所有符合依赖条件的服务，无需让 AI 一条一条执行。已有服务会复用，失败会保留已启动服务并报告原因。`services up --jobs 1` 可串行排障，资源有限时可通过 `[service_startup] concurrency = 4` 显式限制并发数。
 
 统一构建、特殊启动顺序由项目脚本负责；Kit 管理各服务进程、等待就绪并记录耗时。详见[启动约定](docs/protocol.md#parallel-service-startup)。
+
+
+## 看见 AI 正在调试的页面
+
+0.6.0 起，托管浏览器默认有头运行。`echo-kit browser up` 或页面验收会启动 Docker 浏览器，并尝试用系统默认浏览器打开只读观看页：你看到的是 AI 正在操作的同一个桌面，不绑定 Edge，也无需安装 VNC 客户端。观看页无法点击或输入，不会干扰实验。
+
+首次使用会构建并缓存浏览器镜像，需要联网下载依赖，耗时比后续启动长。每个容器只尝试自动打开一次；关闭观看页不会停止实验，也不会被强制重开。返回的 `viewer_url` 可随时再次打开；`browser down` 停止并移除所属容器，运行占用仍受保护。
+
+```toml
+[browser]
+headless = false    # 默认有头；true 适合不需要观看的批量实验
+# auto_open = false  # 不自动弹出观看页；CI 环境默认不弹出
+# viewer_port = 19324
+```
+
+已有旧容器不会偷偷切换模式；等实验结束后按提示执行 `browser down`、`browser up`。详见[可视浏览器约定](docs/protocol.md#visible-browser)。

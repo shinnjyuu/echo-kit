@@ -101,6 +101,8 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                         event(path, record, 'authentication', 'passed')
                     if case.get('browser'):
                         browser = manage(ws, 'up')
+                        record['browser'] = browser
+                        save(path / 'browser.json', browser)
                         event(path, record, 'browser', 'passed')
                 save(path / 'active.json', {'run_id': record['id'], 'phase': 'executing'})
                 request = {'protocol': 1, 'run_id': record['id'], 'inputs': inputs,

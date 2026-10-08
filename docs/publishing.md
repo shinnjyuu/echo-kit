@@ -39,6 +39,8 @@ echo-kit --json runtime info
 
 1. 更新实际 Skill 资源；修改公开协议时，确认仓库正文与随包副本完全一致。同步受影响的 CLI 行为、文档入口、帮助和示例。
 2. 运行相关核心检查和 Skill 校验。新增 CLI 文档入口时验证实际输出与包资源一致，导出仍保留参考资料的相对路径，已有项目文件不会被覆盖。
+浏览器运行环境变更还需验证 wheel 包含 `resources/browser/Dockerfile` 和 `server.cjs`，从安装包实际启动有头/无头容器，并检查只读输入限制与模式迁移保护。真实 Docker 测试可显式设置 `ECHO_KIT_DOCKER_TESTS=1` 后运行 `uv run pytest tests/test_docker_browser.py`；默认核心测试不启动 Docker。
+
 3. 为本轮发布选择新版本，同步修改 `pyproject.toml` 与 `src/echo_kit/__init__.py`，运行 `uv lock`、`uv run pytest`、`uv build --no-sources`。
 4. 在源码目录之外的独立环境安装本轮构建的 wheel，检查版本、帮助及实际支持的文档入口。将导出的 Skill 和协议与本轮预期内容比较，并验证旧入口迁移及运行记录中的实际工具版本。涉及更新逻辑时用隔离的候选包验证启动转交、准备失败回退、业务失败不重跑。仅从源码执行成功不足以证明安装包交付正确。
 5. 按本轮已有授权提交、推送并发布。若本轮范围仅包括修改文档或普通推送，交付时明确标记“随包文档待发版”，不要声称已安装用户已经获得更新。

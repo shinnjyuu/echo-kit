@@ -37,7 +37,7 @@ uv run echo-kit --workspace D:/echo-demo/qa --actor "示例 API 验收" --json v
 
 ## 可选：验收页面
 
-需要正在运行的 Docker。首次启动会下载固定版本的 Playwright 镜像及 npm 包；浏览器服务器和 Python 客户端均使用 Playwright 1.63.0。用例会准备示例前后端，打开页面、下载文件并保存截图和 trace。
+需要正在运行的 Docker。0.6.0 起首次启动会从固定版本的 Playwright 基础镜像构建可视运行环境，并缓存系统与 npm 依赖；浏览器服务器和 Python 客户端均使用 Playwright 1.63.0。后续复用镜像，不在容器启动时重新安装。用例会准备示例前后端，打开页面、下载文件并保存截图和 trace。默认尝试在系统浏览器中打开本机只读观看页（控制端口 19323，观看端口 19324）；用例较短，结束后上下文会关闭，桌面可能恢复为空。观看链接同时保存在运行记录的 `browser.viewer_url`。不需要弹窗时在 `[browser]` 中设置 `auto_open=false`；无需画面时设置 `headless=true`。关闭观看页不会停止实验。
 
 ```sh
 uv run echo-kit --json operations list

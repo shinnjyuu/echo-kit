@@ -257,3 +257,21 @@ def test_config_default_and_cli_override(manager):
     manager.ws.cfg['service_startup'] = {'concurrency': 2}
     assert manager._plan(['a'], None)[1] == 2
     assert manager._plan(['a'], 1)[1] == 1
+
+
+def test_default_more_than_four_services_start_together(manager, monkeypatch):
+    import copy
+    for name in 'ef':
+        manager.ws.cfg['services'][name] = copy.deepcopy(manager.ws.cfg['services']['a'])
+        manager.ws.cfg['services'][name]['resource_id'] = name
+    barrier = threading.Barrier(6)
+    monkeypatch.setattr(manager, '_up', lambda *args: (barrier.wait(timeout=5), 'ready')[1])
+    result = manager.up(list('abcdef'))
+    assert all(result[n]['startup']['result'] == 'ready' for n in 'abcdef')
+
+
+def test_empty_selection_needs_no_executor(manager, monkeypatch):
+    import echo_kit.startup as startup
+    manager.ws.cfg['services'] = {}
+    monkeypatch.setattr(startup, 'ThreadPoolExecutor', lambda **kw: pytest.fail('empty created executor'))
+    assert manager.up([]) == {}

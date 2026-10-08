@@ -37,7 +37,11 @@ def parser():
                         'list': 'List configured entries and Git status without document bodies',
                         'show': 'Read one explicit project document entry',
                         'check': 'Check paths and Git ownership without changing files'}
-            cmd = sub.add_parser(action, **({'help': doc_help[action]} if module == 'docs' else {}))
+            cmd = sub.add_parser(action, **({'help': doc_help[action]} if module == 'docs' else
+                {'description': 'Managed Docker Chromium is headed by default with a local read-only viewer. '
+                 'browser up opens it once in the system browser (disable with browser.auto_open=false; CI defaults off). '
+                 'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
+                if module == 'browser' else {}))
             if module == 'docs' and action == 'show':
                 cmd.add_argument('scope', choices=['shared', 'private'])
             elif module == 'updates':
@@ -50,7 +54,7 @@ def parser():
             elif module == 'services':
                 cmd.add_argument('names', nargs='*')
                 if action in ('up', 'restart'):
-                    cmd.add_argument('--jobs', type=int, help='Concurrent service starts (default: configuration or 4; 1 is serial)')
+                    cmd.add_argument('--jobs', type=int, help='Concurrent service starts (default: all selected services unless configured; 1 is serial)')
             elif module == 'auth':
                 cmd.add_argument('name')
             elif module in ('lab', 'verify'):

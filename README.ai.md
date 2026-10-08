@@ -160,8 +160,17 @@ Kit >= 0.3.0 提供项目文档分层。先调用 `echo-kit --json docs list`，
 维护 Kit 时，保持 Skill、协议副本与 CLI 文档入口、相关命令和示例一致。随包 Skill 或协议的修改需要提升版本并发布，且应在仓库外验证安装包实际携带的新内容；尚未发布时明确标记“待发版”。项目导出副本需另外比较、合并。完整规则见[发布与随包文档更新机制](docs/publishing.md)，发布遵循本轮已有授权。
 
 
-## 并行启动（0.5.0+）
+## 并行启动（0.6.0+）
 
-一次调用 `echo-kit services up api worker web`，默认并发 4；不要用多个并行 CLI 命令绕过资源管理。`[service_startup] concurrency` 修改默认值，`services up/restart --jobs 1` 用于串行排障；Verify 使用配置值。已有 `depends` 继续生效，但不要仅因为服务间有业务调用就添加启动依赖。
+一次调用 `echo-kit services up api worker web`，默认同时启动全部符合依赖条件的服务；不要用多个并行 CLI 命令绕过资源管理。`[service_startup] concurrency` 可显式限制并发数，`services up/restart --jobs 1` 用于串行排障；Verify 使用配置值。已有 `depends` 继续生效，但不要仅因为服务间有业务调用就添加启动依赖。
 
 需要统一构建时，先运行项目自己的构建脚本并确认成功，再调用 Kit；移除对应服务重复的 `prepare`。项目启动脚本保持前台运行，具体顺序由项目维护。读取启动汇总和 `operations show ID` 中的阶段耗时定位瓶颈；部分失败后先检查状态，复用已启动实例，不自动回滚或重试业务请求。完整规则见[公开协议](docs/protocol.md#parallel-service-startup)。
+
+
+## 可视浏览器（0.6.0+）
+
+托管浏览器默认 `headless=false`，通过 noVNC 提供本机只读观看页。开始页面验收时展示返回的 `viewer_url`；用户要求观看时打开该链接。CLI 默认尝试调用系统浏览器打开一次，不要另外重复弹窗或在用户关闭后强制重开。`browser.auto_open=false` 禁止自动打开，CI 环境默认不打开，显式配置优先。观看页关闭不影响实验；上下文照常收尾并保存 trace，容器留供复用。
+
+`browser.headless=true` 禁用可视组件和观看端口。控制端口默认 19323，观看端口默认 19324，均只监听本机；使用多个工作区时分别配置端口。`browser up/status` 与 Verify 的浏览器记录包含实际模式、连接和观看地址。多个实验共享一个桌面，前台窗口可能切换。没有页面时桌面可能为空，这不代表浏览器失败。
+
+首次启动从固定 Playwright 基础镜像构建随包运行环境，按资源摘要缓存；构建失败不降级，检查返回的构建日志。`browser.image` 可配置同版本镜像源。旧容器、模式或运行资源变化会提示显式 `browser down`/`browser up`；先处理运行占用，不自动中断实验。外部 `browser.endpoint` 仍只连接，可选 `browser.viewer_url` 仅作外部链接，不自动打开，也不保证只读。详见[公开协议](docs/protocol.md#visible-browser)。

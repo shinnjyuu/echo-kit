@@ -90,6 +90,11 @@ def browser_resources(ws):
     keys = {browser_resource(ws): 'shared'}
     if not ws.cfg.get('browser', {}).get('endpoint'):
         state = read(ws.state / 'browser.json', {})
+        cfg = ws.cfg.get('browser', {})
+        if not cfg.get('headless', False):
+            keys[endpoint(port=cfg.get('viewer_port', 19324))] = 'shared'
+        if state.get('viewer_url'):
+            keys[endpoint(url=state['viewer_url'])] = 'shared'
         if state.get('endpoint'):
             keys[endpoint(url=state['endpoint'])] = 'shared'
         if state.get('id'):

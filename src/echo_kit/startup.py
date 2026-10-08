@@ -14,8 +14,8 @@ def validate(ws, names, jobs):
     config = ws.cfg.get('service_startup', {})
     if not isinstance(config, dict):
         raise KitError('service_startup must be a table')
-    jobs = config.get('concurrency', 4) if jobs is None else jobs
-    if type(jobs) is not int or jobs < 1:
+    jobs = config.get('concurrency') if jobs is None else jobs
+    if jobs is not None and (type(jobs) is not int or jobs < 1):
         raise KitError('Service concurrency must be a positive integer')
     specs = ws.cfg.get('services', {})
     # Validate before traversal so malformed dependencies fail without side effects.
@@ -72,7 +72,8 @@ def validate(ws, names, jobs):
                     raise KitError('Prepare timeout must be positive: ' + name)
     for name in names:
         check(name)
-    return service_names(ws, names), jobs
+    selected = service_names(ws, names)
+    return selected, jobs if jobs is not None else max(1, len(selected))
 
 
 class Startup:
@@ -114,6 +115,8 @@ class Startup:
         pending = list(self.names)
         futures = {}
         failed = interrupted = False
+        if not self.names:
+            return self.manager.status()
         pool = ThreadPoolExecutor(max_workers=self.jobs)
         try:
             while pending or futures:
