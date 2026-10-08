@@ -120,3 +120,21 @@ headless = false    # 默认有头；true 适合不需要观看的批量实验
 ```
 
 已有旧容器不会偷偷切换模式；等实验结束后按提示执行 `browser down`、`browser up`。详见[可视浏览器约定](docs/protocol.md#visible-browser)。
+
+## 获取当前指南与更新说明
+
+AI 在新会话首次使用时读取对应指南，实际执行版本变化后重新读取：
+
+```sh
+echo-kit guide echo-init       # 项目接入
+echo-kit guide echo-lab        # 实验
+echo-kit guide echo-workbench  # 联调验证
+echo-kit updates notes
+echo-kit updates notes --since 0.5.0
+```
+
+指南一次返回同一执行包的 Skill、协议、当前更新说明和版本；支持 `--json`，无需工作区。普通调用检查最新版，`--offline` 读取当前可用包。`--version` 和 `runtime info` 是安装入口的诊断信息，不能代替业务执行版本。自动升级提示不代表项目已适配。
+
+前端调试推荐 **Kit 管理的 Docker 浏览器与只读 noVNC**。Docker 或构建失败时先处理错误，不自动改接外部浏览器。已有 `browser.endpoint` 仍生效，但只是显式兼容例外：Kit 不管理其镜像、显示模式和观看页，也不保证外部观看链接只读。查看 `browser up/status` 的能力信息；要切换时先检查配置来源和运行占用，在授权范围内调整配置后启动托管浏览器，不停止或接管原外部容器。
+
+项目文档只维护启动方式、用例、认证流程、团队规则和环境归属；个人机器信息留在私有文档。项目 Skill 可写成指向 `echo-kit guide echo-workbench` 的短入口。整理旧副本时保留项目事实，再将通用 Kit 用法改为 CLI 入口，不覆盖原文。需要离线分发完整 Skill 时仍可导出到空目录并比较合并。

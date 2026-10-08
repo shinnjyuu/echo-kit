@@ -126,3 +126,13 @@ headless = false    # Headed by default; use true for runs that need no viewer
 ```
 
 Existing containers do not silently change modes. After active experiments finish, follow the migration prompt to run `browser down`, then `browser up`. See the [visible browser rules](docs/protocol.md#visible-browser).
+
+## Current guides and upgrade guidance
+
+On first Kit use in an AI session, read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`. Read again when the execution version changes. Each combines the Skill, protocol, release notes and actual version from one package; JSON and workspace-free reads are supported. Ordinary calls check the latest release; `--offline` reads the usable package. Installed-entry diagnostics (`--version`, `runtime info`) are not business execution provenance.
+
+Use `echo-kit updates notes` for this release or `echo-kit updates notes --since 0.5.0` for later bundled history. An upgrade notice does not mean the project has been adapted.
+
+Prefer the Kit-managed Docker browser and read-only noVNC viewer. Report Docker/build failures instead of falling back to an external endpoint. Existing `browser.endpoint` remains an explicit exception: Kit does not manage its image, display or viewer, or guarantee external viewer read-only access. Read browser up/status capability information; inspect configuration sources and active operations before an authorized configuration change and managed startup. Never stop or adopt the external container.
+
+Project documents hold startup commands, cases, authentication workflows, team rules and environment ownership; private notes hold personal machine facts. Project Skills should point to the CLI guide. Preserve existing project facts and edits when replacing copied generic instructions. Full exports remain available for explicit offline distribution through an empty directory and deliberate comparison/merge.

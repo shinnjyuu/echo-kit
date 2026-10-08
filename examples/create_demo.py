@@ -1,4 +1,6 @@
-"""Create three independent directories. Does not launch anything or overwrite."""
+"""Create three independent directories. Does not launch anything or overwrite.
+Read echo-kit guide echo-workbench first. Page verification uses the default
+Kit-managed Docker browser with a read-only noVNC viewer; no external endpoint."""
 import argparse
 import json
 import shutil

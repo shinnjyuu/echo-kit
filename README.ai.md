@@ -34,11 +34,11 @@ echo-kit --help
 
 ```sh
 echo-kit --json skills list
-echo-kit --json skills show echo-init
-echo-kit --json protocol show
+echo-kit --json guide echo-init
+echo-kit updates notes
 ```
 
-JSON 包含实际工具版本、文档摘要和正文。版本摘要用于说明来源，不再锁住后续调用。需要文件供助手发现时，也可导出：
+JSON 包含实际工具版本、文档摘要和正文。版本摘要用于说明来源，不再锁住后续调用。项目需要助手发现入口时，优先写指向 `echo-kit guide echo-init` 的简短 Skill，保留项目事实。明确需要完整离线分发时才导出：
 
 ```sh
 echo-kit skills export "EMPTY_SKILLS_DIR"
@@ -174,3 +174,21 @@ Kit >= 0.3.0 提供项目文档分层。先调用 `echo-kit --json docs list`，
 `browser.headless=true` 禁用可视组件和观看端口。控制端口默认 19323，观看端口默认 19324，均只监听本机；使用多个工作区时分别配置端口。`browser up/status` 与 Verify 的浏览器记录包含实际模式、连接和观看地址。多个实验共享一个桌面，前台窗口可能切换。没有页面时桌面可能为空，这不代表浏览器失败。
 
 首次启动从固定 Playwright 基础镜像构建随包运行环境，按资源摘要缓存；构建失败不降级，检查返回的构建日志。`browser.image` 可配置同版本镜像源。旧容器、模式或运行资源变化会提示显式 `browser down`/`browser up`；先处理运行占用，不自动中断实验。外部 `browser.endpoint` 仍只连接，可选 `browser.viewer_url` 仅作外部链接，不自动打开，也不保证只读。详见[公开协议](docs/protocol.md#visible-browser)。
+
+## 获取当前指南与更新说明
+
+AI 在新会话首次使用时读取对应指南，实际执行版本变化后重新读取：
+
+```sh
+echo-kit guide echo-init       # 项目接入
+echo-kit guide echo-lab        # 实验
+echo-kit guide echo-workbench  # 联调验证
+echo-kit updates notes
+echo-kit updates notes --since 0.5.0
+```
+
+指南一次返回同一执行包的 Skill、协议、当前更新说明和版本；支持 `--json`，无需工作区。普通调用检查最新版，`--offline` 读取当前可用包。`--version` 和 `runtime info` 是安装入口的诊断信息，不能代替业务执行版本。自动升级提示不代表项目已适配。
+
+前端调试推荐 **Kit 管理的 Docker 浏览器与只读 noVNC**。Docker 或构建失败时先处理错误，不自动改接外部浏览器。已有 `browser.endpoint` 仍生效，但只是显式兼容例外：Kit 不管理其镜像、显示模式和观看页，也不保证外部观看链接只读。查看 `browser up/status` 的能力信息；要切换时先检查配置来源和运行占用，在授权范围内调整配置后启动托管浏览器，不停止或接管原外部容器。
+
+项目文档只维护启动方式、用例、认证流程、团队规则和环境归属；个人机器信息留在私有文档。项目 Skill 可写成指向 `echo-kit guide echo-workbench` 的短入口。整理旧副本时保留项目事实，再将通用 Kit 用法改为 CLI 入口，不覆盖原文。需要离线分发完整 Skill 时仍可导出到空目录并比较合并。

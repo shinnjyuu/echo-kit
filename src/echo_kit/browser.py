@@ -196,10 +196,28 @@ def open_viewer_once(cfg, state, file):
     save(file, state)
 
 
+def describe(result):
+    from . import __version__
+    external = result.get('mode') == 'external'
+    viewer = bool(result.get('viewer_url')) and not external
+    return {**result, 'tool_version': __version__,
+            'capabilities': {'manages_image': not external, 'controls_display_mode': not external,
+                             'provides_viewer': viewer,
+                             'guarantees_read_only': viewer and result.get('viewer_read_only') is True},
+            'next_steps': ([
+                'External browser.endpoint is an explicit project exception; Kit does not manage its image or display mode, provide a viewer, or guarantee an external viewer is read-only.',
+                'For managed Docker viewing, inspect configuration sources and operations list; within user authorization remove the endpoint override and run browser up. Never stop, delete or adopt the external container.',
+                'Read echo-kit guide echo-workbench and echo-kit updates notes.'
+            ] if external else [
+                'Open viewer_url when available; headless and legacy containers have no managed viewer.',
+                'For mode/runtime changes, finish active operations before explicitly running browser down then browser up.'
+            ])}
+
+
 def manage(ws, action):
     from .operations import operation, browser_resource, browser_resources
     if action == 'status':
-        return _manage(ws, action)
+        return describe(_manage(ws, action))
     if action == 'up':
         settings(ws)
     key = browser_resource(ws)
@@ -208,7 +226,7 @@ def manage(ws, action):
         resources['browser-start:' + key] = 'exclusive'
         resources['browser-state:' + str(ws.state.resolve())] = 'exclusive'
     with operation(ws, 'browser.' + action, resources):
-        return _manage(ws, action)
+        return describe(_manage(ws, action))
 
 
 def _manage(ws, action):
@@ -216,10 +234,16 @@ def _manage(ws, action):
     file = ws.state / 'browser.json'
     state = read(file, {})
     if cfg.get('endpoint'):
+        result = describe({'mode': 'external', 'endpoint': cfg['endpoint'], 'status': 'available',
+                           'headless': None, 'viewer_url': cfg.get('viewer_url'), 'viewer_read_only': None})
         if action != 'down':
-            connect_check(cfg['endpoint'])
-        return {'mode': 'external', 'endpoint': cfg['endpoint'], 'status': 'available',
-                'headless': None, 'viewer_url': cfg.get('viewer_url'), 'viewer_read_only': None}
+            try:
+                connect_check(cfg['endpoint'])
+            except Exception as cause:
+                error = KitError('External browser connection failed: ' + str(cause))
+                error.details = {**result, 'status': 'blocked'}
+                raise error from cause
+        return result
     if not state and action != 'up':
         return {'status': 'stopped', 'viewer_url': None}
     if action == 'up' and version('playwright') != PLAYWRIGHT_VERSION:

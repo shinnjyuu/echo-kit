@@ -79,3 +79,9 @@ GitHub 推送不等于发布。0.4.0 起普通命令启动时检查最新稳定�
 | Environment name | pypi |
 
 启用账号双因素认证。首次上传成功才实际占用包名。无需保存长期 API Token。未完成 PyPI 授权时不要推送发布标签。
+
+## 发行说明（0.7.0 起）
+
+每次行为或随包文档变化，更新 `src/echo_kit/skills/references/releases.json` 对应版本条目：行为变化、配置、适配条件、具体步骤、无需修改的情况。记录随包分发，不读取远端 main。保持版本覆盖真实；未记录历史不声称完整。
+
+发布验证需从仓库外安装 wheel，执行 `--offline guide echo-init`、`--offline --json guide echo-workbench`、`--offline updates notes` 和 `--offline updates notes --since 0.5.0`，确认 Skill、协议、发行说明与执行版本一致。导出仍需包含协议和发行记录资源，并保留既有项目副本。

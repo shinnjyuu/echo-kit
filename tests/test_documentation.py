@@ -58,3 +58,33 @@ def test_public_protocol_matches_bundled_copy():
     public = Path(__file__).resolve().parents[1] / 'docs/protocol.md'
     assert documentation.digest(public.read_bytes()) == documentation.digest(
         documentation.resources()['references/protocol.md'])
+
+
+@pytest.mark.parametrize('name', ['echo-init', 'echo-lab', 'echo-workbench'])
+def test_guide_same_package_offline(tmp_path, monkeypatch, capsys, name):
+    from echo_kit import updates
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: pytest.fail('network'))
+    assert main(['--offline', '--json', 'guide', name]) == 0
+    result = json.loads(capsys.readouterr().out)
+    for item in (result, result['skill'], result['protocol'], result['updates']):
+        assert item['version'] == __version__
+        assert item['documentation_digest'] == result['documentation_digest']
+    assert result['skill']['content'] == documentation.show(name)['content']
+    assert result['updates']['releases'][0]['version'] == __version__
+    assert not list(tmp_path.iterdir())
+
+
+def test_notes_ranges_and_export(tmp_path, capsys):
+    assert [e['version'] for e in documentation.notes('0.5.0')['releases']] == ['0.6.0', '0.7.0']
+    assert documentation.notes('0.2.0')['warning']
+    assert documentation.notes('9.0.0')['warning']
+    assert documentation.notes(__version__)['releases'] == []
+    with pytest.raises(KitError):
+        documentation.notes('bad')
+    documentation.export(tmp_path)
+    assert json.loads((tmp_path / 'references/releases.json').read_text())
+    assert main(['--offline', '--json', 'updates', 'notes', '--since', '0.5.0']) == 0
+    assert len(json.loads(capsys.readouterr().out)['releases']) == 2
+    assert main(['--offline', 'guide', 'echo-init']) == 0
+    assert '0.7.0' in capsys.readouterr().out

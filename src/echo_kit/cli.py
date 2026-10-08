@@ -28,7 +28,7 @@ def parser():
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
                             'docs': ['setup', 'list', 'show', 'check'],
-                            'runtime': ['info'], 'updates': ['check', 'setup']}.items():
+                            'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
         group = top.add_parser(module, **({'help': 'Discover and check shared/private project documents'}
                                          if module == 'docs' else {}))
         sub = group.add_subparsers(dest='action', required=True)
@@ -45,6 +45,8 @@ def parser():
             if module == 'docs' and action == 'show':
                 cmd.add_argument('scope', choices=['shared', 'private'])
             elif module == 'updates':
+                if action == 'notes':
+                    cmd.add_argument('--since', help='Read bundled releases newer than this version')
                 if action == 'check':
                     cmd.add_argument('--refresh', action='store_true', help='Bypass the release-check cache')
             elif module == 'operations' and action != 'list':
@@ -68,11 +70,18 @@ def parser():
                     cmd.add_argument('name')
                 elif action in ('export', 'status'):
                     cmd.add_argument('destination')
+    top.add_parser('guide', help='Read a Skill, protocol and release notes from this package').add_argument('name')
     top.add_parser('doctor')
     return p
 
 
 def dispatch(args):
+    if args.module == 'guide':
+        from .documentation import guide
+        return guide(args.name)
+    if args.module == 'updates' and args.action == 'notes':
+        from .documentation import notes
+        return notes(args.since)
     if args.module == 'workspace' and args.action == 'init':
         return init_workspace(args.workspace)
     if args.module == 'skills':
@@ -208,6 +217,9 @@ def main(argv=None):
         diagnostic = (any(x in ('--help', '-h', '--version') for x in raw)
                       or (route.module, route.action) in (('runtime', 'info'), ('updates', 'check')))
         discovery = None
+        if diagnostic:
+            os.environ.pop(updates.FORWARDED, None)
+            os.environ.pop('ECHO_KIT_SOURCE_VERSION', None)
         if not diagnostic:
             child_code, discovery = updates.startup(raw, route.offline)
             if child_code is not None:
@@ -226,6 +238,12 @@ def main(argv=None):
     elif args is not None and args.module in ('skills', 'protocol') and args.action == 'show' and code == 0:
         print(f"Echo Kit {result['version']} · {result['path']}\n")
         print(result['content'], end='' if result['content'].endswith('\n') else '\n')
+    elif args is not None and code == 0 and args.module == 'guide':
+        from .documentation import render_notes
+        print(f"Echo Kit {result['version']}\n\n" + result['skill']['content'] + '\n' + result['protocol']['content'] + '\n' + render_notes(result['updates']))
+    elif args is not None and code == 0 and args.module == 'updates' and args.action == 'notes':
+        from .documentation import render_notes
+        print(f"Echo Kit {result['version']}\n\n" + render_notes(result))
     elif isinstance(result, list):
         for item in result:
             print(f"{item.get('id', '')} {item.get('case', '')}: {item.get('status', '')}")

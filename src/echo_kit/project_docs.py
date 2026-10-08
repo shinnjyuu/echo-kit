@@ -376,7 +376,7 @@ def _setup(ws):
             reused.append(label(ws, path))
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
-        text = ('# Team documentation\n\nRecord reusable workflows, architecture and verification conclusions here.\n'
+        text = ('# Team documentation\n\nRead `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench` for current Kit rules.\nRead again when the actual execution version changes; use `echo-kit updates notes` for adaptation guidance.\nKeep project startup, cases, authentication workflows (no secrets), team constraints and environment ownership here, not a copied Kit manual.\nPersonal machine facts belong in the ignored private entry.\n\nRecord reusable workflows, architecture and verification conclusions here.\n'
                 'Use relative file links. Track shared documents in Git. Do not depend on private evidence.\n'
                 'Discover optional local notes with `echo-kit docs list`; read explicitly with `echo-kit docs show private`.\n'
                 if scope == 'shared' else

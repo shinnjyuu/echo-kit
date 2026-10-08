@@ -156,3 +156,39 @@ def test_offline_fallback_is_explicit(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert json.loads(captured.out)['version'] == __version__
     assert 'latest release not confirmed' in captured.err
+
+
+@pytest.mark.parametrize('source', [None, '0.6.0'])
+def test_forwarded_notice_and_source_consumed(online, monkeypatch, capsys, source):
+    import echo_kit.cli as cli
+    monkeypatch.setenv(updates.FORWARDED, __version__)
+    monkeypatch.setenv('ECHO_KIT_EXPECTED_VERSION', __version__)
+    if source:
+        monkeypatch.setenv('ECHO_KIT_SOURCE_VERSION', source)
+    else:
+        monkeypatch.delenv('ECHO_KIT_SOURCE_VERSION', raising=False)
+    calls = []
+    def business(args):
+        assert not any(k in os.environ for k in ('ECHO_KIT_SOURCE_VERSION', updates.FORWARDED, 'ECHO_KIT_EXPECTED_VERSION'))
+        calls.append(args._update)
+        return {'status': 'failed'}
+    monkeypatch.setattr(cli, 'dispatch', business)
+    assert main(['--json', 'guide', 'echo-init']) == 1
+    output = capsys.readouterr()
+    assert json.loads(output.out)['status'] == 'failed'
+    assert (source or 'unknown') in output.err and 'updates notes' in output.err
+    assert len(calls) == 1 and calls[0]['source_version'] == source
+
+
+def test_parent_passes_source_once(online, monkeypatch):
+    monkeypatch.setattr(updates, 'check', lambda **kw: {'stale': False, 'update_available': True, 'latest_version': NEXT_VERSION})
+    monkeypatch.setattr(updates, 'probe', lambda v: None)
+    monkeypatch.setattr(updates, 'command_prefix', lambda *a, **kw: ['future'])
+    calls = []
+    def execute(command, env):
+        calls.append(command)
+        assert env['ECHO_KIT_SOURCE_VERSION'] == __version__
+        return 7
+    monkeypatch.setattr(updates.subprocess, 'call', execute)
+    assert updates.startup(['guide', 'echo-init'])[0] == 7
+    assert calls == [['future', 'guide', 'echo-init']]

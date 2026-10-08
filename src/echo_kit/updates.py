@@ -161,7 +161,7 @@ def child_environment():
     # modify the user's uv configuration or the business interpreter.
     for name in ('PYTHONPATH', 'UV_INDEX', 'UV_INDEX_URL', 'UV_EXTRA_INDEX_URL', 'UV_DEFAULT_INDEX',
                  'UV_FIND_LINKS', 'UV_NO_INDEX', 'UV_CONSTRAINT', 'UV_OVERRIDE', 'UV_CONFIG_FILE',
-                 'ECHO_KIT_EXPECTED_VERSION', 'ECHO_KIT_FORWARDED_VERSION'):
+                 'ECHO_KIT_EXPECTED_VERSION', 'ECHO_KIT_FORWARDED_VERSION', 'ECHO_KIT_SOURCE_VERSION'):
         env.pop(name, None)
     return env
 
@@ -189,11 +189,14 @@ def probe(version, no_network=False):
 
 def startup(raw, no_network=False):
     """Return (child exit code or None, discovery). Never retry a business command."""
+    source_version = os.environ.pop('ECHO_KIT_SOURCE_VERSION', None)
     forwarded = os.environ.pop(FORWARDED, None)
     if forwarded:
         if forwarded != __version__:
             raise KitError('Forwarded runtime does not match the prepared version')
-        return None, {'source': 'forwarded', 'running_version': __version__, 'stale': False}
+        print(f'Echo Kit: executing {__version__} (source: {source_version or "unknown"}); '
+              'read echo-kit updates notes and echo-kit guide echo-workbench (or echo-init / echo-lab).', file=sys.stderr)
+        return None, {'source': 'forwarded', 'source_version': source_version, 'running_version': __version__, 'stale': False}
     discovery = check(no_network=no_network)
     if discovery['stale']:
         print(f'Echo Kit: latest release not confirmed ({discovery["source"]}); using {__version__}.', file=sys.stderr)
@@ -209,6 +212,7 @@ def startup(raw, no_network=False):
         print(f'Echo Kit: could not prepare {target} ({error}); using {__version__}.', file=sys.stderr)
         return None, discovery
     env = child_environment()
+    env['ECHO_KIT_SOURCE_VERSION'] = __version__
     env[FORWARDED] = target
     env['ECHO_KIT_EXPECTED_VERSION'] = target
     # Preparation ended above. From this point failures are returned without fallback.

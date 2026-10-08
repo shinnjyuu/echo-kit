@@ -1,0 +1,42 @@
+[
+  {
+    "version": "0.3.0",
+    "changes": "Shared and private project documents with explicit CLI discovery and checks.",
+    "configuration": "[documents] shared in echo-kit.toml; private in .echo-kit/local.toml.",
+    "applies_when": "A project wants document entry points.",
+    "steps": "Run docs setup; retain existing files, use relative shared links and ignored private notes; run docs check.",
+    "no_change_when": "Existing projects without document registration keep working."
+  },
+  {
+    "version": "0.4.0",
+    "changes": "Ordinary commands execute the latest compatible stable release; project version tasks and policies removed.",
+    "configuration": "Legacy echo-kit.py and echo-kit.lock.json; --task and updates apply removed.",
+    "applies_when": "A project uses a generated version-pinned entry or task workflow.",
+    "steps": "Read updates setup help; finish active business operations/cleanup, then migrate generated entries with backups. Preserve custom entries and historical evidence; call echo-kit directly.",
+    "no_change_when": "Direct CLI users need no project version files or tasks."
+  },
+  {
+    "version": "0.5.0",
+    "changes": "Dependency-aware parallel service startup, bounded by a default of four in this release.",
+    "configuration": "[service_startup] concurrency and services up/restart --jobs; existing depends and prepare.",
+    "applies_when": "Service startup previously relied on implicit serial order.",
+    "steps": "Declare real dependencies; keep shared builds in project scripts and use --jobs 1 for diagnostics. Inspect partial failures without automatic rollback.",
+    "no_change_when": "Existing explicit dependencies and project adapters remain valid."
+  },
+  {
+    "version": "0.6.0",
+    "changes": "Managed Docker browsers are headed with read-only noVNC; default service concurrency covers all selected services.",
+    "configuration": "browser.headless, viewer_port, auto_open; explicit concurrency limits remain; external browser.endpoint stays external.",
+    "applies_when": "An old container/config lacks viewing or a project expects the old implicit concurrency limit.",
+    "steps": "Read browser status and active operations. After operations finish, explicitly browser down/up to recreate an owned container. For external endpoints, inspect configuration source and adjust only within authorization; never stop or adopt the external container. Set concurrency explicitly if needed.",
+    "no_change_when": "Current managed containers can be reused; explicit headless/external choices and explicit concurrency limits are preserved. An upgrade alone never migrates external browsers."
+  },
+  {
+    "version": "0.7.0",
+    "changes": "guide combines current Skill, protocol and release notes; updates notes explains adaptation; browser results disclose capabilities. Docker is the recommended frontend debugging route.",
+    "configuration": "No new project settings. Existing browser.endpoint is an explicit compatibility exception.",
+    "applies_when": "AI uses copied Kit instructions or assumes an upgraded tool migrated its project/browser.",
+    "steps": "Read guide for the relevant Skill on first session use and after execution-version changes. Use updates notes --since VERSION only when that earlier version is known. Keep project facts/team rules and replace copied generic instructions with a short CLI pointer. Inspect external capability reports before proposing authorized migration.",
+    "no_change_when": "Existing documents, exports, adapters and external instances are preserved. No acknowledgement files, version locks or mandatory migration."
+  }
+]

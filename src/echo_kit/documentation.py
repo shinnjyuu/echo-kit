@@ -3,6 +3,7 @@ import hashlib
 import json
 from importlib.resources import files
 from pathlib import Path
+from packaging.version import Version, InvalidVersion
 
 from . import __version__
 from .core import KitError, read, safe_name, save
@@ -54,6 +55,39 @@ def show(name=None):
     if relative not in data:
         raise KitError('Unknown Skill: ' + str(name))
     return {'status': 'passed', **tool_info(), 'path': relative, 'content': data[relative].decode('utf-8')}
+
+
+def notes(since=None):
+    entries = json.loads(resources()['references/releases.json'])
+    entries = sorted((e for e in entries if Version(e['version']) <= Version(__version__)),
+                     key=lambda e: Version(e['version']))
+    try:
+        lower = Version(since) if since is not None else None
+    except InvalidVersion as error:
+        raise KitError('Invalid --since version') from error
+    selected = [e for e in entries if (Version(e['version']) > lower if lower is not None
+                                     else e['version'] == __version__)]
+    warning = None
+    if lower is not None and lower < Version(entries[0]['version']):
+        warning = 'History before ' + entries[0]['version'] + ' is not bundled; this is not a complete upgrade history.'
+    if lower is not None and lower > Version(__version__):
+        warning = '--since is newer than the executing package; no later history is available.'
+    return {'status': 'passed', **tool_info(), 'since': since, 'releases': selected,
+            'coverage': {'first': entries[0]['version'], 'last': entries[-1]['version']}, 'warning': warning}
+
+
+def guide(name):
+    skill, protocol, release = show(name), show(), notes()
+    return {'status': 'passed', **tool_info(), 'skill': skill, 'protocol': protocol, 'updates': release}
+
+
+def render_notes(result):
+    parts = [result['warning']] if result.get('warning') else []
+    for entry in result['releases']:
+        parts.append('## ' + entry['version'])
+        parts.extend(key + ': ' + entry[key] for key in
+                     ('changes', 'configuration', 'applies_when', 'steps', 'no_change_when'))
+    return '\n\n'.join(parts) or 'No release notes in the requested range.'
 
 
 def export(destination):

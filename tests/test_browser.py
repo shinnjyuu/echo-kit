@@ -215,3 +215,27 @@ def test_verify_persists_browser_metadata(ws, monkeypatch):
     assert record['status'] == 'passed' and record['browser'] == metadata
     assert read(ws.runs / record['id'] / 'browser.json') == metadata
     assert read(ws.runs / record['id'] / 'adapter/request.json')['browser'] == metadata
+
+
+@pytest.mark.parametrize('fails', [False, True])
+@pytest.mark.parametrize('action', ['up', 'status'])
+def test_external_capability_context(ws, monkeypatch, fails, action):
+    from echo_kit import __version__
+    ws.cfg['browser'] = {'endpoint': 'ws://external:3000/', 'viewer_url': 'http://external/view'}
+    monkeypatch.setattr(browser, 'docker', lambda *a: pytest.fail('external called Docker'))
+    def connect(endpoint):
+        if fails:
+            raise RuntimeError('not reachable')
+    monkeypatch.setattr(browser, 'connect_check', connect)
+    if fails:
+        with pytest.raises(KitError) as caught:
+            browser.manage(ws, action)
+        result = caught.value.details
+        assert result['status'] == 'blocked'
+    else:
+        result = browser.manage(ws, action)
+    assert result['mode'] == 'external' and result['tool_version'] == __version__
+    assert result['endpoint'] == ws.cfg['browser']['endpoint']
+    assert result['viewer_url'] == ws.cfg['browser']['viewer_url']
+    assert not any(result['capabilities'].values())
+    assert result['next_steps'] and result['viewer_read_only'] is None
