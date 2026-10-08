@@ -5,6 +5,8 @@ description: Initialize or maintain Echo Kit project adapters when the user expl
 
 # Echo project onboarding
 
+For Kit >= 0.3.0, discover project documents with `--json docs list` through the task prefix. During authorized onboarding, use `docs setup` if absent; preserve existing entries or configure them instead of relocating documents. Read `docs show shared`, and explicitly read `docs show private` only as needed. Shared knowledge uses relative file links and belongs in Git; local paths and personal evidence belong in ignored private notes. Personal notes supplement team rules, never silently override them or expand authorization. Extract sanitized conclusions before sharing private material; keep shared instructions independently reproducible. After document edits run `docs check`; initial untracked shared files return unverified. Do not auto-delete tracked private files or rewrite Git history. See [project document rules](../references/protocol.md#shared-and-private-project-documents) for configuration, checking boundaries and conflicts.
+
 Use only for explicit onboarding requests. Inspect existing build, test, CI and launch files before generating anything. Discover repository paths from context; ask only about unresolved targets, authentication or allowed environments.
 
 Run `echo-kit --help`. Read `echo-kit --json skills show echo-init` and `echo-kit --json protocol show` for the running package's documentation without a workspace or network. Initialize with `echo-kit --workspace PATH workspace init` only if absent. Exported skills do not initialize projects automatically.

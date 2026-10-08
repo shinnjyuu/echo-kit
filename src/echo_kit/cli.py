@@ -28,13 +28,21 @@ def parser():
                             'operations': ['list', 'show', 'resolve'],
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
+                            'docs': ['setup', 'list', 'show', 'check'],
                             'runtime': ['info'], 'updates': ['check', 'setup', 'apply'],
                             'task': ['start', 'list', 'show', 'finish']}.items():
-        group = top.add_parser(module)
+        group = top.add_parser(module, **({'help': 'Discover and check shared/private project documents'}
+                                         if module == 'docs' else {}))
         sub = group.add_subparsers(dest='action', required=True)
         for action in actions:
-            cmd = sub.add_parser(action)
-            if module == 'updates':
+            doc_help = {'setup': 'Create missing entries and ignore rules without overwriting documents',
+                        'list': 'List configured entries and Git status without document bodies',
+                        'show': 'Read one explicit project document entry',
+                        'check': 'Check paths and Git ownership without changing files'}
+            cmd = sub.add_parser(action, **({'help': doc_help[action]} if module == 'docs' else {}))
+            if module == 'docs' and action == 'show':
+                cmd.add_argument('scope', choices=['shared', 'private'])
+            elif module == 'updates':
                 if action == 'check':
                     cmd.add_argument('--refresh', action='store_true', help='Bypass the release-check cache')
                 elif action == 'setup':
@@ -105,6 +113,11 @@ def dispatch(args):
         return journal.resolve(args.id, args.note)
     ws = Workspace(args.workspace, args.environment)
     ws.actor = args.actor or ws.actor
+    if args.module == 'docs':
+        from . import project_docs
+        if args.action == 'show':
+            return project_docs.show(ws, args.scope)
+        return getattr(project_docs, 'catalog' if args.action == 'list' else args.action)(ws)
     if args.module == 'updates':
         from . import tasks
         if args.action == 'setup':
@@ -136,7 +149,9 @@ def dispatch(args):
                 from .services import healthy
                 checks.append({'name': 'ready:' + name, 'status': 'passed' if healthy(ws, service) else 'unverified'})
         from .documentation import tool_info
+        from .project_docs import summary
         return {'status': 'passed' if all(c['status'] == 'passed' for c in checks) else 'unverified', 'checks': checks,
+                'documents': summary(ws),
                 'tool': tool_info(), 'update': ws.tool_update, 'task_id': ws.task_id,
                 'unfinished_runs': [p.parent.name for p in ws.runs.glob('*/active.json')]}
     if args.module == 'runs':

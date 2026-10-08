@@ -176,6 +176,10 @@ python echo-kit.py --task TASK_ID --json runs report RUN_ID
 
 ## 7. 留下后续入口并交付
 
+Kit >= 0.3.0 提供项目文档分层。先用任务前缀调用 `--json docs list`，读取 `docs show shared`，按任务需要显式读取 `docs show private`。未接入时，在已授权的项目接入范围内运行 `docs setup`；已有入口不覆盖。共享入口默认 `echo/README.md`，私有入口默认 `.echo-kit/private/README.md`。可通过共享配置的 `[documents] shared` 和本机配置的 `[documents] private` 指向既有文档，environment 不可改变归属。
+
+共享文档使用相对文件引用并纳入 Git；私有文档允许绝对路径但必须排除 Git。个人说明只能补充本机事实，不能默默覆盖团队规则或扩大授权。共享结论与复现方法应独立可用，不依赖他人拿不到的私有原始材料；私有内容共享前应提炼并清理个人信息。文档修改后运行 `docs check`，按结果修正；它不自动暂存、提交、删除文件或改写历史。初次生成的共享文档未跟踪时会返回 `unverified`，详见[项目文档说明](docs/project-documents.md)。
+
 在目标项目已有的 AI 指引或使用文档中补充入口，保留原有内容。记录选定版本及调用方式、工作区、已接入的用例、Skills 位置、报告位置，以及环境和认证的必要前提。后续会话应能据此复用现有配置。
 
 留下 `python echo-kit.py` 入口与“开始任务、沿用任务 ID、结束任务”的工作方式，版本号由 `echo-kit.lock.json` 维护。工作和关联收尾完成后执行：

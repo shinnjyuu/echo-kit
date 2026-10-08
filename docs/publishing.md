@@ -35,6 +35,8 @@ echo-kit --json runtime info
 
 ## 从修改到安装包的验证
 
+修改项目文档分层能力时，还需验证 `docs setup/list/show/check`、任务固定版本下的入口、私有正文不被诊断或报告回显，以及安装包中的 Skill/协议和实现一致。新版本声明不会自动迁移已有项目文档或替换项目导出副本。
+
 1. 更新实际 Skill 资源；修改公开协议时，确认仓库正文与随包副本完全一致。同步受影响的 CLI 行为、文档入口、帮助和示例。
 2. 运行相关核心检查和 Skill 校验。新增 CLI 文档入口时验证实际输出与包资源一致，导出仍保留参考资料的相对路径，已有项目文件不会被覆盖。
 3. 为本轮发布选择新版本，同步修改 `pyproject.toml` 与 `src/echo_kit/__init__.py`，运行 `uv lock`、`uv run pytest`、`uv build --no-sources`。
