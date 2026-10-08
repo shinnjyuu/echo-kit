@@ -95,3 +95,10 @@ Echo Kit 0.3.0 起支持区分团队共享文档与个人私有文档：共享�
 - [默认最新版与旧入口迁移](docs/updates.md)：启动检查、离线回退和文档同步。
 - [验证记录](docs/validation.md)与[多会话协作验证](docs/operations-validation.md)：已验证的范围和平台限制。
 - [发布维护说明](docs/publishing.md)：面向维护者的构建和发布流程。
+
+
+## 多个服务一起启动
+
+0.5.0 起，`echo-kit services up` 默认最多同时启动 4 个服务，无需让 AI 一条一条执行。已有服务会复用，失败会保留已启动服务并报告原因。`services up --jobs 1` 可串行排障，默认并发数可通过 `[service_startup] concurrency = 4` 设置。
+
+统一构建、特殊启动顺序由项目脚本负责；Kit 管理各服务进程、等待就绪并记录耗时。详见[启动约定](docs/protocol.md#parallel-service-startup)。

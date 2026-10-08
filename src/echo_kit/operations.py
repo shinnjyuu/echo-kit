@@ -164,10 +164,10 @@ class Journal:
                     if key.startswith('build:'):
                         del held[key]
 
-    def event(self, oid, action, state):
+    def event(self, oid, action, state, **details):
         with self.lock():
             record = read(self.file(oid))
-            record['events'].append({'time': time.time(), 'action': action, 'state': state})
+            record['events'].append({'time': time.time(), 'action': action, 'state': state, **details})
             save(self.file(oid), record)
 
     def release(self, oid, result='completed', retain=False):
@@ -238,9 +238,9 @@ def bind_operation(oid):
         _held.reset(token)
 
 
-def activity(action, state):
+def activity(action, state, **details):
     if _held.get():
-        Journal().event(_held.get()[-1][0], action, state)
+        Journal().event(_held.get()[-1][0], action, state, **details)
 
 
 @contextmanager

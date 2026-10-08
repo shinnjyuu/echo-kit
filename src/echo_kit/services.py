@@ -3,10 +3,27 @@ import subprocess
 import time
 import urllib.request
 import hashlib
+from contextlib import nullcontext, contextmanager
 from pathlib import Path
 
 from .core import KitError, read, save, safe_name, versions
 from .processes import fingerprint, matches, spawn, stop
+
+
+@contextmanager
+def phase(timings, name, service):
+    from .operations import activity
+    started = time.monotonic()
+    activity(name + ':' + service, 'started')
+    outcome = 'completed'
+    try:
+        yield
+    except BaseException:
+        outcome = 'failed'
+        raise
+    finally:
+        timings[name] = time.monotonic() - started
+        activity(name + ':' + service, outcome, duration=timings[name])
 
 
 def source_snapshot(path):
@@ -95,40 +112,54 @@ class Services:
         except (KitError, OSError, subprocess.TimeoutExpired):
             return 'unknown'
 
-    def up(self, names):
+    def up(self, names, jobs=None):
         from .operations import operation, service_resources
+        names, jobs = self._plan(names, jobs)
         with operation(self.ws, 'services.up', service_resources(self.ws, names)):
-            return self._up_all(names)
+            return self._up_all(names, jobs)
 
-    def restart(self, names):
+    def restart(self, names, jobs=None):
         from .operations import operation, service_resources
+        selected = list(names)
+        names, jobs = self._plan(names, jobs)
         with operation(self.ws, 'services.restart', service_resources(self.ws, names)):
-            self._down(names)
-            return self._up_all(names)
+            self._down(selected)
+            return self._up_all(names, jobs)
 
-    def _up_all(self, names):
-        for name in names:
-            self._up(name, [])
-        return self.status()
+    def _plan(self, names, jobs):
+        from .startup import validate
+        return validate(self.ws, names, jobs)
 
-    def _up(self, name, stack):
+    def _up_all(self, names, jobs):
+        from .startup import Startup
+        return Startup(self, names, jobs).run()
+
+    def _up(self, name, cancel, timings, build_lock):
         safe_name(name)
         specs = self.ws.cfg.get('services', {})
         if name not in specs:
             raise KitError('Unknown service: ' + name)
-        if name in stack:
-            raise KitError('Service dependency cycle: ' + ' -> '.join(stack + [name]))
         spec = specs[name]
-        if spec.get('mode', 'managed') not in ('managed', 'external'):
-            raise KitError('Unsupported service mode: ' + name)
-        for dependency in spec.get('depends', []):
-            self._up(dependency, stack + [name])
         state = read(self.file, {})
         own = name in state and matches(state[name]['identity'])
         if spec.get('mode', 'managed') == 'external':
-            if not healthy(self.ws, spec):
-                raise KitError('External service not ready: ' + name)
-            return
+            with phase(timings, 'ready', name):
+                if not healthy(self.ws, spec):
+                    raise KitError('External service not ready: ' + name)
+            return 'reused'
+        if cancel.is_set():
+            raise KitError('Startup interrupted')
+        queued = time.monotonic()
+        with build_lock if not own else nullcontext():
+            timings['queue'] += time.monotonic() - queued
+            if cancel.is_set():
+                raise KitError('Startup interrupted')
+            self._launch(name, spec, state, own, cancel, timings)
+        with phase(timings, 'ready', name):
+            self._wait_ready(name, spec, state, cancel)
+        return 'reused' if own else 'ready'
+
+    def _launch(self, name, spec, state, own, cancel, timings):
         if not own:
             port = spec.get('port', spec.get('ready', {}).get('port'))
             if port:
@@ -140,56 +171,68 @@ class Services:
             if healthy(self.ws, spec):
                 raise KitError('Unowned endpoint already available: ' + name)
             if 'prepare' in spec:
-                from .operations import activity
-                activity('build:' + name, 'started')
-                before = source_snapshot(self.ws.project(spec.get('project')))
-                prepare = spec['prepare']
-                log = self.ws.state / 'logs' / (name + '-prepare.log')
-                log.parent.mkdir(parents=True, exist_ok=True)
-                with log.open('ab') as handle:
-                    p = spawn(self.ws.command(prepare), self.ws.project(spec.get('project')), self.ws.env(prepare), handle)
-                    identity = fingerprint(p.pid)
-                    from .operations import track_child
-                    track_child(identity)
-                    try:
-                        p.wait(timeout=prepare.get('timeout', 120))
-                    except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
-                        stop(identity)
-                        p.wait(timeout=10)
-                        if isinstance(error, KeyboardInterrupt):
-                            raise
-                        raise KitError('Prepare interrupted or timed out: ' + name)
-                if p.returncode:
-                    raise KitError('Prepare command failed: ' + name)
-                if source_snapshot(self.ws.project(spec.get('project'))) != before:
-                    raise KitError('Source changed during build; artifact not started: ' + name)
-                activity('build:' + name, 'completed')
+                with phase(timings, 'build', name):
+                    before = source_snapshot(self.ws.project(spec.get('project')))
+                    prepare = spec['prepare']
+                    log = self.ws.state / 'logs' / (name + '-prepare.log')
+                    log.parent.mkdir(parents=True, exist_ok=True)
+                    with log.open('ab') as handle:
+                        p = spawn(self.ws.command(prepare), self.ws.project(spec.get('project')), self.ws.env(prepare), handle)
+                        identity = fingerprint(p.pid)
+                        from .operations import track_child
+                        track_child(identity)
+                        try:
+                            deadline = time.monotonic() + prepare.get('timeout', 120)
+                            while p.poll() is None:
+                                if cancel.wait(.05):
+                                    raise KeyboardInterrupt
+                                if time.monotonic() >= deadline:
+                                    raise subprocess.TimeoutExpired(p.args, prepare.get('timeout', 120))
+                        except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+                            stop(identity)
+                            p.wait(timeout=10)
+                            if isinstance(error, KeyboardInterrupt):
+                                raise
+                            raise KitError('Prepare interrupted or timed out: ' + name)
+                    if p.returncode:
+                        raise KitError('Prepare command failed: ' + name)
+                    if source_snapshot(self.ws.project(spec.get('project'))) != before:
+                        raise KitError('Source changed during build; artifact not started: ' + name)
             else:
                 before = None
-            artifacts = artifact_snapshot(self.ws, spec)
-            log = self.ws.state / 'logs' / (name + '.log')
-            log.parent.mkdir(parents=True, exist_ok=True)
-            with log.open('ab') as handle:
-                from .operations import activity
-                activity('start:' + name, 'started')
-                process = spawn(self.ws.command(spec), self.ws.project(spec.get('project')), self.ws.env(spec), handle)
-            try:
-                identity = fingerprint(process.pid)
-            except Exception:
-                raise KitError('Service exited at startup: ' + name)
-            state[name] = {'identity': identity, 'log': str(log), 'started': time.time(), 'versions': versions(self.ws),
-                           'source': before, 'artifacts': artifacts,
-                           'version_scope': 'build_artifact' if artifacts else 'source_or_hot_reload_unpinned'}
-            self._save_item(name, state[name])
+            if cancel.is_set():
+                raise KitError('Startup interrupted')
+            with phase(timings, 'start', name):
+                artifacts = artifact_snapshot(self.ws, spec)
+                log = self.ws.state / 'logs' / (name + '.log')
+                log.parent.mkdir(parents=True, exist_ok=True)
+                with log.open('ab') as handle:
+                    process = spawn(self.ws.command(spec), self.ws.project(spec.get('project')), self.ws.env(spec), handle)
+                try:
+                    identity = fingerprint(process.pid)
+                except Exception:
+                    raise KitError('Service exited at startup: ' + name)
+                try:
+                    state[name] = {'identity': identity, 'log': str(log), 'started': time.time(), 'versions': versions(self.ws),
+                                   'source': before, 'artifacts': artifacts,
+                                   'version_scope': 'build_artifact' if artifacts else 'source_or_hot_reload_unpinned'}
+                    self._save_item(name, state[name])
+                except BaseException:
+                    from .operations import track_child
+                    track_child(identity)
+                    stop(identity)
+                    raise
+
+    def _wait_ready(self, name, spec, state, cancel):
         deadline = time.monotonic() + spec.get('timeout', 30)
         while time.monotonic() < deadline:
+            if cancel.is_set():
+                raise KitError('Startup interrupted')
             if not matches(state[name]['identity']):
                 raise KitError('Service exited: ' + name)
             if healthy(self.ws, spec):
-                from .operations import activity
-                activity('ready:' + name, 'completed')
                 return
-            time.sleep(.1)
+            cancel.wait(.1)
         raise KitError('Service readiness timed out: ' + name)
 
     def down(self, names):

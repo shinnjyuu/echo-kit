@@ -12,6 +12,9 @@ from echo_kit import __version__, updates
 from echo_kit.cli import main
 from echo_kit.core import KitError, save
 from echo_kit.operations import data_root
+from packaging.version import Version
+
+NEXT_VERSION = f'{Version(__version__).major}.{Version(__version__).minor + 1}.0'
 
 
 @pytest.fixture
@@ -35,17 +38,17 @@ def test_every_successful_check_refreshes_across_minor_versions(online, monkeypa
     calls = []
     def fetch():
         calls.append(True)
-        return {'0.4.0': ['>=3.11'], '0.5.0': ['>=3.11']}
+        return {'0.4.0': ['>=3.11'], NEXT_VERSION: ['>=3.11']}
     monkeypatch.setattr(updates, 'fetch_releases', fetch)
     first = updates.check()
-    assert first['latest_version'] == '0.5.0' and first['update_available']
+    assert first['latest_version'] == NEXT_VERSION and first['update_available']
     assert not {'policy', 'candidate_version', 'project_version'} & first.keys()
     updates.check()
     assert len(calls) == 2
 
 
 def test_network_failure_is_throttled_offline_uses_cache(online, monkeypatch):
-    monkeypatch.setattr(updates, 'fetch_releases', lambda: {'0.5.0': ['>=3.11']})
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
     first = updates.check()
     calls = []
     def unavailable():
@@ -79,23 +82,23 @@ def test_probe_only_checks_startable_identity(online, monkeypatch):
     captured = []
     def run(command, **kwargs):
         captured.append((command, kwargs['env']))
-        return SimpleNamespace(returncode=0, stdout=json.dumps({'package': updates.PACKAGE, 'version': '0.5.0'}))
+        return SimpleNamespace(returncode=0, stdout=json.dumps({'package': updates.PACKAGE, 'version': NEXT_VERSION}))
     monkeypatch.setattr(updates.subprocess, 'run', run)
-    assert updates.probe('0.5.0')['version'] == '0.5.0'
+    assert updates.probe(NEXT_VERSION)['version'] == NEXT_VERSION
     command, env = captured[0]
     assert '--refresh-package' in command and command[-3:] == ['--json', 'runtime', 'info']
-    assert env['ECHO_KIT_EXPECTED_VERSION'] == env[updates.FORWARDED] == '0.5.0'
+    assert env['ECHO_KIT_EXPECTED_VERSION'] == env[updates.FORWARDED] == NEXT_VERSION
     assert len(captured) == 1  # No workspace or documentation compatibility probe.
     monkeypatch.setattr(updates.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout='{}'))
     with pytest.raises(KitError):
-        updates.probe('0.5.0')
+        updates.probe(NEXT_VERSION)
     for version in ('0.3.0', '0.5.0rc1', 'git+https://example.invalid/repo', '--bad'):
         with pytest.raises(KitError):
             updates.command_prefix(version)
 
 
 def test_new_command_routes_before_parser_and_never_retries_business_failure(online, monkeypatch, tmp_path, capfd):
-    monkeypatch.setattr(updates, 'fetch_releases', lambda: {'0.5.0': ['>=3.11']})
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
     prepared = []
     monkeypatch.setattr(updates, 'probe', lambda v: prepared.append(v))
     helper = tmp_path / 'future.py'
@@ -104,11 +107,11 @@ def test_new_command_routes_before_parser_and_never_retries_business_failure(onl
     args = ['--json', 'future-command', '--new-option', 'value']
     assert main(args) == 7
     assert json.loads(capfd.readouterr().out)['args'] == args
-    assert prepared == ['0.5.0']
+    assert prepared == [NEXT_VERSION]
 
 
 def test_preparation_failure_falls_back_before_business(online, monkeypatch, capsys):
-    monkeypatch.setattr(updates, 'fetch_releases', lambda: {'0.5.0': ['>=3.11']})
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
     def fail(*a):
         raise KitError('unavailable')
     monkeypatch.setattr(updates, 'probe', fail)

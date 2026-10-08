@@ -49,6 +49,8 @@ def parser():
                     cmd.add_argument('--note', required=True)
             elif module == 'services':
                 cmd.add_argument('names', nargs='*')
+                if action in ('up', 'restart'):
+                    cmd.add_argument('--jobs', type=int, help='Concurrent service starts (default: configuration or 4; 1 is serial)')
             elif module == 'auth':
                 cmd.add_argument('name')
             elif module in ('lab', 'verify'):
@@ -97,6 +99,7 @@ def dispatch(args):
         return journal.resolve(args.id, args.note)
     ws = Workspace(args.workspace, args.environment)
     ws.actor = args.actor
+    ws.startup_progress = not args.json
     ws.tool_update = getattr(args, "_update", None)
     if args.module == 'docs':
         from . import project_docs
@@ -152,7 +155,7 @@ def dispatch(args):
         from .services import Services
         service = Services(ws)
         names = args.names or list(ws.cfg.get('services', {}))
-        return getattr(service, args.action)(names)
+        return getattr(service, args.action)(names, jobs=args.jobs) if args.action in ('up', 'restart') else getattr(service, args.action)(names)
     if args.module == 'auth':
         from .auth import authenticate
         summary, _ = authenticate(ws, args.name, args.action)
@@ -211,6 +214,7 @@ def main(argv=None):
         code = exit_code(result)
     except (KitError, Timeout, OSError, ValueError, KeyError) as error:
         result, code = {'status': 'blocked', 'error': str(error), **getattr(error, 'details', {})}, 2
+        code = exit_code(result)
     except KeyboardInterrupt:
         result, code = {'status': 'interrupted'}, 130
     if (args is not None and args.json) or (args is None and '--json' in raw):

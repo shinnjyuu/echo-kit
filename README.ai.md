@@ -158,3 +158,10 @@ Kit >= 0.3.0 提供项目文档分层。先调用 `echo-kit --json docs list`，
 当前不提供 IDE 插件、Agent 引擎、通用验证码绕过或后台自动恢复。回放指已有记录和 Playwright trace 查看，不承诺确定性重跑。
 
 维护 Kit 时，保持 Skill、协议副本与 CLI 文档入口、相关命令和示例一致。随包 Skill 或协议的修改需要提升版本并发布，且应在仓库外验证安装包实际携带的新内容；尚未发布时明确标记“待发版”。项目导出副本需另外比较、合并。完整规则见[发布与随包文档更新机制](docs/publishing.md)，发布遵循本轮已有授权。
+
+
+## 并行启动（0.5.0+）
+
+一次调用 `echo-kit services up api worker web`，默认并发 4；不要用多个并行 CLI 命令绕过资源管理。`[service_startup] concurrency` 修改默认值，`services up/restart --jobs 1` 用于串行排障；Verify 使用配置值。已有 `depends` 继续生效，但不要仅因为服务间有业务调用就添加启动依赖。
+
+需要统一构建时，先运行项目自己的构建脚本并确认成功，再调用 Kit；移除对应服务重复的 `prepare`。项目启动脚本保持前台运行，具体顺序由项目维护。读取启动汇总和 `operations show ID` 中的阶段耗时定位瓶颈；部分失败后先检查状态，复用已启动实例，不自动回滚或重试业务请求。完整规则见[公开协议](docs/protocol.md#parallel-service-startup)。
