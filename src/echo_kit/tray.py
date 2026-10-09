@@ -357,7 +357,7 @@ def serve(token):
                 items.append(pystray.MenuItem(label, pystray.Menu(*children)))
             if not items:
                 items.append(pystray.MenuItem('暂无运行中的托管资源', None, enabled=False))
-            items.extend([pystray.MenuItem('刷新', lambda *a: refresh.set()), pystray.MenuItem('退出托盘（保留服务）', quit_ui)])
+            items.append(pystray.MenuItem('退出托盘（保留服务）', quit_ui))
             return items
 
         def worker():

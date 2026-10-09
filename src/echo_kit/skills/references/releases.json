@@ -54,5 +54,13 @@
     "applies_when": "A 0.8.0 tray displays a blank terminal window.",
     "steps": "After upgrading, run tray stop then tray start in a registered project to replace the existing UI process. This does not stop services, containers or experiments.",
     "no_change_when": "Existing business resources and browser state remain unchanged. A running older tray is not automatically replaced."
+  },
+  {
+    "version": "0.8.2",
+    "changes": "Remove the redundant Refresh tray menu item. Resource state still updates automatically every five seconds.",
+    "configuration": "No configuration changes.",
+    "applies_when": "Using the Windows tray menu.",
+    "steps": "After upgrading, restart only the tray to see the simplified menu; no manual refresh is needed.",
+    "no_change_when": "Business services, browser pages and experiments are unaffected."
   }
 ]
