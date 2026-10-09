@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .core import KitError, read, save, safe_name, versions
 from .processes import fingerprint, matches, spawn, stop
+from .tray import startup_scope, notify
 
 
 @contextmanager
@@ -90,6 +91,8 @@ class Services:
             else:
                 state[name] = value
             save(self.file, state)
+        if value is not None:
+            notify(self.ws)
 
     def status(self):
         state = read(self.file, {})
@@ -112,12 +115,14 @@ class Services:
         except (KitError, OSError, subprocess.TimeoutExpired):
             return 'unknown'
 
+    @startup_scope
     def up(self, names, jobs=None):
         from .operations import operation, service_resources
         names, jobs = self._plan(names, jobs)
         with operation(self.ws, 'services.up', service_resources(self.ws, names)):
             return self._up_all(names, jobs)
 
+    @startup_scope
     def restart(self, names, jobs=None):
         from .operations import operation, service_resources
         selected = list(names)

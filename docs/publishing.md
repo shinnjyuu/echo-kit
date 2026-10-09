@@ -85,3 +85,7 @@ GitHub 推送不等于发布。0.4.0 起普通命令启动时检查最新稳定�
 每次行为或随包文档变化，更新 `src/echo_kit/skills/references/releases.json` 对应版本条目：行为变化、配置、适配条件、具体步骤、无需修改的情况。记录随包分发，不读取远端 main。保持版本覆盖真实；未记录历史不声称完整。
 
 发布验证需从仓库外安装 wheel，执行 `--offline guide echo-init`、`--offline --json guide echo-workbench`、`--offline updates notes` 和 `--offline updates notes --since 0.5.0`，确认 Skill、协议、发行说明与执行版本一致。导出仍需包含协议和发行记录资源，并保留既有项目副本。
+
+## Windows 托盘发布检查（0.8.0 起）
+
+验证 Windows 条件依赖 pystray/Pillow、随包 tray.png、仓库外 wheel 的 tray start/status/stop，以及后台启动握手。核心测试禁用真实托盘；Linux 导入核心不得加载 GUI 依赖。独立记录 Windows 图标/菜单人工验收与真实 Docker 同页面恢复、trace 连续性、停止后的自动退出证据。无法进行人工点击时明确标记未验证；进程启动成功不等于菜单已人工验收。

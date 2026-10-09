@@ -7,6 +7,7 @@ from .browser import manage
 from .core import KitError, event, merge, new_run, read, save
 from .runs import report
 from .services import Services
+from .tray import startup_scope
 
 
 def cleanup_run(ws, path):
@@ -57,6 +58,7 @@ def verdict(value, required):
     return 'passed'
 
 
+@startup_scope(verify_only=True)
 def run(ws, name, kind='lab', variant='baseline', repeat=1):
     if repeat < 1:
         raise KitError('repeat must be positive')

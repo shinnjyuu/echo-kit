@@ -28,9 +28,10 @@ def parser():
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
                             'docs': ['setup', 'list', 'show', 'check'],
-                            'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
+                            'tray': ['start', 'status', 'stop'], 'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
         group = top.add_parser(module, **({'help': 'Discover and check shared/private project documents'}
-                                         if module == 'docs' else {}))
+                                         if module == 'docs' else {'help': 'Windows viewing tray; never stops business resources'}
+                                         if module == 'tray' else {}))
         sub = group.add_subparsers(dest='action', required=True)
         for action in actions:
             doc_help = {'setup': 'Create missing entries and ignore rules without overwriting documents',
@@ -38,6 +39,10 @@ def parser():
                         'show': 'Read one explicit project document entry',
                         'check': 'Check paths and Git ownership without changing files'}
             cmd = sub.add_parser(action, **({'help': doc_help[action]} if module == 'docs' else
+                {'description': {'start': 'Register this workspace and show the Windows tray if owned resources are running. Honors CI, desktop availability and ECHO_KIT_TRAY=0.',
+                                 'status': 'Read tray and resource process state without a workspace; does not run application health commands.',
+                                 'stop': 'Exit only the tray. Services, browser containers and experiments continue. No workspace required.'}[action]}
+                if module == 'tray' else
                 {'description': 'Managed Docker Chromium is headed by default with a local read-only viewer. '
                  'browser up opens it once in the system browser (disable with browser.auto_open=false; CI defaults off). '
                  'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
@@ -76,6 +81,15 @@ def parser():
 
 
 def dispatch(args):
+    if args.module == 'tray':
+        from . import tray
+        if args.action == 'status':
+            return tray.status()
+        if sys.platform != 'win32':
+            return {'status': 'unverified', 'reason': 'unsupported_platform', 'tray': 'unsupported'}
+        if args.action == 'stop':
+            return tray.stop()
+        return tray.start(Workspace(args.workspace, args.environment))
     if args.module == 'guide':
         from .documentation import guide
         return guide(args.name)

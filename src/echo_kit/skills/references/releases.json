@@ -38,5 +38,13 @@
     "applies_when": "AI uses copied Kit instructions or assumes an upgraded tool migrated its project/browser.",
     "steps": "Read guide for the relevant Skill on first session use and after execution-version changes. Use updates notes --since VERSION only when that earlier version is known. Keep project facts/team rules and replace copied generic instructions with a short CLI pointer. Inspect external capability reports before proposing authorized migration.",
     "no_change_when": "Existing documents, exports, adapters and external instances are preserved. No acknowledgement files, version locks or mandatory migration."
+  },
+  {
+    "version": "0.8.0",
+    "changes": "Windows desktop tray discovers registered owned services and browser containers. Reopen an existing debugging viewer without messaging AI or restarting an experiment.",
+    "configuration": "Automatic tray is off for CI, noninteractive sessions and ECHO_KIT_TRAY=0. No browser port or project configuration changes.",
+    "applies_when": "Windows users want to recover a closed noVNC tab while resources are running.",
+    "steps": "Start services or browser normally, or run tray start in an existing workspace. Choose the project viewer from the tray menu. tray status/stop require no workspace; stopping the tray leaves business resources intact.",
+    "no_change_when": "Other platforms keep CLI/viewer links. Headless and legacy browsers have no viewer. External instances are excluded. No service daemon or boot startup is installed."
   }
 ]

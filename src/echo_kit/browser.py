@@ -215,6 +215,20 @@ def describe(result):
 
 
 def manage(ws, action):
+    if action == 'up':
+        return _tray_up(ws)
+    return _manage_operation(ws, action)
+
+
+from .tray import startup_scope, notify
+
+
+@startup_scope
+def _tray_up(ws):
+    return _manage_operation(ws, 'up')
+
+
+def _manage_operation(ws, action):
     from .operations import operation, browser_resource, browser_resources
     if action == 'status':
         return describe(_manage(ws, action))
@@ -296,6 +310,7 @@ def _manage(ws, action):
         except BaseException:
             docker('rm', '-f', cid)
             raise
+    notify(ws)
     deadline = time.monotonic() + cfg['timeout']
     reason = ''
     while time.monotonic() < deadline:

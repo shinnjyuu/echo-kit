@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import time
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -12,6 +13,42 @@ from echo_kit.core import Workspace, init_workspace
 from test_core import free_port
 
 pytestmark = pytest.mark.skipif(os.environ.get('ECHO_KIT_DOCKER_TESTS') != '1', reason='Explicit real Docker evidence only')
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows tray integration')
+def test_real_tray_reopens_same_session_and_exits_when_idle(ws, tmp_path, monkeypatch):
+    from echo_kit import tray
+    monkeypatch.setenv('ECHO_KIT_TRAY', '1')
+    monkeypatch.delenv('CI', raising=False)
+    if not tray.interactive():
+        pytest.skip('Interactive Windows desktop required')
+    try:
+        result = browser.manage(ws, 'up')
+        assert tray.status()['tray'] == 'running'
+        key = tray.register(ws)
+        opened = []
+        def open_link(url, **kwargs):
+            browser.viewer_check(url)  # Connect and disconnect the actual viewing transport.
+            opened.append(url)
+            return True
+        monkeypatch.setattr(tray.webbrowser, 'open', open_link)
+        with browser.session(result['endpoint'], tmp_path / 'tray-trace') as context:
+            page = context.new_page()
+            page.set_content('<input id="value"><h1>Same experiment</h1>')
+            page.locator('input').fill('before closing viewer')
+            tray.open_viewer(key)
+            tray.open_viewer(key)
+            assert opened == [result['viewer_url']] * 2
+            assert page.locator('input').input_value() == 'before closing viewer'
+            page.locator('input').fill('automation continues')
+        assert (tmp_path / 'tray-trace/trace.zip').is_file()
+        browser.manage(ws, 'down')
+        deadline = time.monotonic() + 45
+        while time.monotonic() < deadline and tray.status()['tray'] == 'running':
+            time.sleep(.5)
+        assert tray.status()['tray'] == 'stopped'
+    finally:
+        tray.stop()
 
 # This deliberately bypasses noVNC's view_only UI flag and sends real RFB input.
 RFB_INPUT = r'''
