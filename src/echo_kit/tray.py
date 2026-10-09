@@ -171,15 +171,21 @@ def stop():
 
 def launch(token):
     directory = root()
+    # A Windows venv python.exe is a redirector: DETACHED_PROCESS on that
+    # redirector does not prevent its console Python child allocating a window.
+    # Keep the same environment but use its GUI redirector for the entire chain.
+    executable = Path(sys.executable).with_name('pythonw.exe')
+    if not executable.is_file():
+        raise KitError('Windowless tray requires pythonw.exe in the current Python environment')
     env = dict(os.environ)
     for key in ('ECHO_KIT_EXPECTED_VERSION', 'ECHO_KIT_FORWARDED_VERSION', 'ECHO_KIT_SOURCE_VERSION', 'PYTHONPATH'):
         env.pop(key, None)
     # Breakaway may be denied by a restrictive Job. Never silently fall back to an attached process.
     with (directory / 'tray.log').open('ab') as log:
         try:
-            return subprocess.Popen([sys.executable, '-I', '-m', 'echo_kit.tray', token], env=env,
+            return subprocess.Popen([str(executable), '-I', '-m', 'echo_kit.tray', token], env=env,
                                     cwd=directory, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
                                     | subprocess.CREATE_BREAKAWAY_FROM_JOB, close_fds=True)
         except OSError as error:
             log.write(traceback.format_exc().encode('utf-8'))

@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
@@ -200,3 +201,35 @@ def test_core_import_does_not_load_gui():
         'import sys; import echo_kit.cli, echo_kit.tray, echo_kit.services; '
         'assert "pystray" not in sys.modules and "PIL" not in sys.modules'], capture_output=True)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows launcher regression')
+def test_windowless_venv_launcher_keeps_environment_without_console(ws, monkeypatch, tmp_path):
+    """Use the actual venv redirector and OS flags, not a mocked process."""
+    import subprocess
+    from echo_kit import __version__
+    tray.root().mkdir()
+    output = tmp_path / 'console.json'
+    popen = subprocess.Popen
+    observed = []
+    def probe(command, **kwargs):
+        observed.append((command, kwargs['creationflags']))
+        script = ('import ctypes,json,sys; from pathlib import Path; from echo_kit import __version__; '
+                  f'Path({str(output)!r}).write_text(json.dumps(dict(console=ctypes.windll.kernel32.GetConsoleWindow(), '
+                  'prefix=sys.prefix,version=__version__)))')
+        return popen(command[:2] + ['-c', script], **kwargs)
+    monkeypatch.setattr(tray.subprocess, 'Popen', probe)
+    process = tray.launch('test-token')
+    assert process.wait(timeout=10) == 0
+    value = json.loads(output.read_text())
+    assert value == {'console': 0, 'prefix': sys.prefix, 'version': __version__}
+    assert observed[0][0][0].endswith('pythonw.exe')
+    assert observed[0][1] & subprocess.CREATE_BREAKAWAY_FROM_JOB
+    assert not observed[0][1] & subprocess.DETACHED_PROCESS
+
+
+def test_missing_gui_launcher_does_not_fall_back_to_console(ws, monkeypatch, tmp_path):
+    monkeypatch.setattr(tray.sys, 'executable', str(tmp_path / 'missing/python.exe'))
+    monkeypatch.setattr(tray.subprocess, 'Popen', lambda *a, **kw: pytest.fail('console fallback'))
+    with pytest.raises(KitError, match='pythonw'):
+        tray.launch('test-token')

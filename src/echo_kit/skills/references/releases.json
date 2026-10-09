@@ -46,5 +46,13 @@
     "applies_when": "Windows users want to recover a closed noVNC tab while resources are running.",
     "steps": "Start services or browser normally, or run tray start in an existing workspace. Choose the project viewer from the tray menu. tray status/stop require no workspace; stopping the tray leaves business resources intact.",
     "no_change_when": "Other platforms keep CLI/viewer links. Headless and legacy browsers have no viewer. External instances are excluded. No service daemon or boot startup is installed."
+  },
+  {
+    "version": "0.8.1",
+    "changes": "Windows tray uses the same environment windowless Python launcher, preventing a persistent console from virtual-environment redirector children.",
+    "configuration": "No project setting changes. The Windows Python environment must include pythonw.exe.",
+    "applies_when": "A 0.8.0 tray displays a blank terminal window.",
+    "steps": "After upgrading, run tray stop then tray start in a registered project to replace the existing UI process. This does not stop services, containers or experiments.",
+    "no_change_when": "Existing business resources and browser state remain unchanged. A running older tray is not automatically replaced."
   }
 ]
