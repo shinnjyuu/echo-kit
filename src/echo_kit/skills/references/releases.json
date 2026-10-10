@@ -62,5 +62,13 @@
     "applies_when": "Using the Windows tray menu.",
     "steps": "After upgrading, restart only the tray to see the simplified menu; no manual refresh is needed.",
     "no_change_when": "Business services, browser pages and experiments are unaffected."
+  },
+  {
+    "version": "0.8.3",
+    "changes": "Onboarding checks test identity prerequisites and guides explicit project-owned preparation, verification and cleanup. Skill reads include the bundled identity reference.",
+    "configuration": "No new commands, project settings or account storage.",
+    "applies_when": "Requested cases require authenticated identities, roles or tenant membership.",
+    "steps": "Read guide echo-init; reuse project account preparation or add a project script when absent. Execute within existing authorization, verify login and required role/tenant, and retain only appropriate reusable identities.",
+    "no_change_when": "Anonymous cases skip preparation. Existing scripts, auth adapters, business accounts and exported project edits remain unchanged."
   }
 ]

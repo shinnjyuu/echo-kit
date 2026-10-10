@@ -251,10 +251,11 @@ def main(argv=None):
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args is not None and args.module in ('skills', 'protocol') and args.action == 'show' and code == 0:
         print(f"Echo Kit {result['version']} · {result['path']}\n")
-        print(result['content'], end='' if result['content'].endswith('\n') else '\n')
+        from .documentation import render_document
+        print(render_document(result))
     elif args is not None and code == 0 and args.module == 'guide':
-        from .documentation import render_notes
-        print(f"Echo Kit {result['version']}\n\n" + result['skill']['content'] + '\n' + result['protocol']['content'] + '\n' + render_notes(result['updates']))
+        from .documentation import render_notes, render_document
+        print(f"Echo Kit {result['version']}\n\n" + render_document(result['skill']) + '\n' + result['protocol']['content'] + '\n' + render_notes(result['updates']))
     elif args is not None and code == 0 and args.module == 'updates' and args.action == 'notes':
         from .documentation import render_notes
         print(f"Echo Kit {result['version']}\n\n" + render_notes(result))

@@ -32,6 +32,11 @@ For `needs_cleanup`, use the original run's `runs cleanup ID`. Only use `operati
 Report the running service's launch/artifact identity separately from current source. Source/hot-reload services are not version-pinned: coordinate edits or use an explicitly configured fixed artifact; do not silently disable version checks. Before migrating an old entry, finish its active operations and business cleanup.
 
 
+## Authenticated experiments only
+
+Lab does not require account preparation by default. If this experiment needs authentication, reuse the project's explicit identity preparation flow and consult [test identity preparation](../references/test-identities.md). Do not create identities for unrelated experiments or hide provisioning inside login; preserve reusable accounts and track/clean only this run's temporary creations.
+
+
 ## Parallel service startup
 
 Service startup defaults to all dependency-eligible selected services concurrently (0.6.0+), without a fixed limit of 4. Use a single `services up` call, not competing CLI processes. Optionally limit concurrency with `[service_startup] concurrency` or use `services up/restart --jobs 1` for serial diagnostics; Verify uses the configured limit. Preserve existing `depends`; project scripts own shared builds and special sequencing. Do not duplicate a project-wide build in each service's `prepare`, or launch unregistered background services from a wrapper. On partial failure, inspect the per-service result and operation timings, then reuse healthy instances; do not automatically roll back or retry business requests. Lab still does not prepare services. See [startup protocol](../references/protocol.md#parallel-service-startup).

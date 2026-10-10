@@ -32,6 +32,13 @@ For `needs_cleanup`, use the original run's `runs cleanup ID`. Only use `operati
 Report the running service's launch/artifact identity separately from current source. Source/hot-reload services are not version-pinned: coordinate edits or use an explicitly configured fixed artifact; do not silently disable version checks. Before migrating an old entry, finish its active operations and business cleanup.
 
 
+## Prepare test identities when needed
+
+During onboarding, identify which requested cases need login, roles, permissions and tenant membership; skip anonymous cases. Inspect existing seeds, fixtures, registration APIs, management commands and preparation scripts first. Reuse them; when absent, write a repeatable project script in the existing script directory or echo/. Follow [test identity preparation](../references/test-identities.md) for pseudocode, sanitized output and handoff checks.
+
+Within existing authorization and an exact allowed target, explicitly prepare the identity, authenticate through the existing adapter, then verify the required role/tenant with a minimal check. Report not-needed, reused, created-and-verified or still-needs-preparation; writing a script is not verification. Never hide provisioning inside login, service startup or Verify. Repeated calls reuse matching accounts; mismatches do not authorize password resets, privilege expansion or takeover. Shared environments require configured targets and task authorization. Keep credentials out of arguments/documents/reports; reusable identities remain, while case-owned temporary IDs use the existing project cleanup path and retain failure evidence.
+
+
 ## Parallel service startup
 
 Service startup defaults to all dependency-eligible selected services concurrently (0.6.0+), without a fixed limit of 4. Use a single `services up` call, not competing CLI processes. Optionally limit concurrency with `[service_startup] concurrency` or use `services up/restart --jobs 1` for serial diagnostics; Verify uses the configured limit. Preserve existing `depends`; project scripts own shared builds and special sequencing. Do not duplicate a project-wide build in each service's `prepare`, or launch unregistered background services from a wrapper. On partial failure, inspect the per-service result and operation timings, then reuse healthy instances; do not automatically roll back or retry business requests. Lab still does not prepare services. See [startup protocol](../references/protocol.md#parallel-service-startup).

@@ -61,6 +61,27 @@ def test_public_protocol_matches_bundled_copy():
 
 
 @pytest.mark.parametrize('name', ['echo-init', 'echo-lab', 'echo-workbench'])
+def test_identity_reference_read_and_export_same_package(name, tmp_path, capsys):
+    reference = 'references/test-identities.md'
+    body = documentation.resources()[reference].decode('utf-8')
+    assert main(['--offline', '--json', 'skills', 'show', name]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result['references'] == [{'path': reference, 'content': body}]
+    assert result['content'] == documentation.resources()[name + '/SKILL.md'].decode('utf-8')
+    assert documentation.guide(name)['skill']['references'] == result['references']
+    for args in (['guide', name], ['skills', 'show', name]):
+        assert main(['--offline', *args]) == 0
+        assert body in capsys.readouterr().out
+    documentation.export(tmp_path)
+    exported = tmp_path / reference
+    assert exported.read_bytes().decode('utf-8') == body
+    exported.write_text('Project-owned edits', encoding='utf-8')
+    with pytest.raises(KitError, match='not overwriting'):
+        documentation.export(tmp_path)
+    assert exported.read_text(encoding='utf-8') == 'Project-owned edits'
+
+
+@pytest.mark.parametrize('name', ['echo-init', 'echo-lab', 'echo-workbench'])
 def test_guide_same_package_offline(tmp_path, monkeypatch, capsys, name):
     from echo_kit import updates
     monkeypatch.chdir(tmp_path)
@@ -76,7 +97,7 @@ def test_guide_same_package_offline(tmp_path, monkeypatch, capsys, name):
 
 
 def test_notes_ranges_and_export(tmp_path, capsys):
-    assert [e['version'] for e in documentation.notes('0.5.0')['releases']] == ['0.6.0', '0.7.0', '0.8.0', '0.8.1', '0.8.2']
+    assert [e['version'] for e in documentation.notes('0.5.0')['releases']] == ['0.6.0', '0.7.0', '0.8.0', '0.8.1', '0.8.2', '0.8.3']
     assert documentation.notes('0.2.0')['warning']
     assert documentation.notes('9.0.0')['warning']
     assert documentation.notes(__version__)['releases'] == []
@@ -85,6 +106,6 @@ def test_notes_ranges_and_export(tmp_path, capsys):
     documentation.export(tmp_path)
     assert json.loads((tmp_path / 'references/releases.json').read_text())
     assert main(['--offline', '--json', 'updates', 'notes', '--since', '0.5.0']) == 0
-    assert len(json.loads(capsys.readouterr().out)['releases']) == 5
+    assert len(json.loads(capsys.readouterr().out)['releases']) == 6
     assert main(['--offline', 'guide', 'echo-init']) == 0
     assert __version__ in capsys.readouterr().out

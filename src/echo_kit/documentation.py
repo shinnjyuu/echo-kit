@@ -54,7 +54,16 @@ def show(name=None):
     data = resources()
     if relative not in data:
         raise KitError('Unknown Skill: ' + str(name))
-    return {'status': 'passed', **tool_info(), 'path': relative, 'content': data[relative].decode('utf-8')}
+    content = data[relative].decode('utf-8')
+    references = []
+    reference = 'references/test-identities.md'
+    if name is not None and '(../' + reference + ')' in content:
+        references.append({'path': reference, 'content': data[reference].decode('utf-8')})
+    return {'status': 'passed', **tool_info(), 'path': relative, 'content': content, 'references': references}
+
+
+def render_document(document):
+    return document['content'] + ''.join('\n\n' + ref['content'] for ref in document.get('references', []))
 
 
 def notes(since=None):
