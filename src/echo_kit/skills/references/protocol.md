@@ -154,3 +154,106 @@ The project script verifies the exact permitted environment (local development b
 Credentials use the existing secret injection and auth private stdin path; never arguments, case inputs, notes or ordinary reports. The credential vault stores auth state, not a provisioning password database. Output only sanitized preparation/identity/role/tenant/verification information. Keep reusable identities; record exact run-owned temporary IDs immediately and use the project's active evidence and cleanup adapters. Failed verification or cleanup retains unresolved evidence; reused accounts must not be deleted.
 
 The bundled references/test-identities.md contains project pseudocode, a sanitized result and handoff checklist. It is included with the relevant Skill's CLI references and exported resources. Shared project docs retain preparation commands, purpose, targets and cleanup rules; personal machine facts stay private, secrets stay in neither. Existing project scripts and documents are not overwritten.
+
+
+## Shared and local configuration
+
+Classify each change before editing: team conventions belong in version-controlled `echo-kit.toml` and project scripts; machine-specific ports, absolute paths, personal mirror sources and local external endpoints belong in ignored, untracked `.echo-kit/local.toml`. Team default ports may remain shared. Actual process identities, container IDs and connection addresses belong in Kit registration files, not manually maintained configuration. Passwords/tokens use existing secret injection and authentication mechanisms; local configuration is not encrypted storage.
+
+Inspect shared, local and selected environment sources first. Shared and local dictionaries merge recursively, then the selected environment overlays that result; arrays replace in full. A local root value does NOT override a value in the selected shared environment: override the same environment table locally. This release does not change precedence or enforce new configuration ownership restrictions. Document entry fields retain their existing stricter source rules.
+
+Keep startup scripts and relative working directories shared. Pass machine differences using parameters or environment variables actually supported by the project script; Kit does not interpolate arbitrary configuration fields into commands. When changing a service port, reconcile its startup input, readiness check, port declarations and consuming URLs. Verify resolved non-secret values and, where needed, startup behavior without dumping the full configuration. Browser port changes require existing occupancy checks and explicit down/up; do not interrupt an active experiment.
+
+Check both ignore rules and Git tracking (for example `git check-ignore --no-index .echo-kit/local.toml` and `git ls-files -- .echo-kit/local.toml`). An ignore rule cannot untrack a committed file. Report tracked private files and propose authorized cleanup; do not delete files or rewrite history automatically. Preserve existing project edits and team defaults; move machine-specific values only within the authorized scope.
+
+### Paired configuration examples
+
+These are independent examples. Use available local ports, not necessarily the illustrative numbers below. No automatic port allocation is provided.
+
+#### Browser ports in two workspaces
+
+Each workspace keeps this shared `echo-kit.toml`:
+
+```toml
+schema_version = 1
+[browser]
+headless = false
+port = 19323
+viewer_port = 19324
+```
+
+Only the second workspace adds `.echo-kit/local.toml`:
+
+```toml
+[browser]
+port = 19423
+viewer_port = 19424
+```
+
+#### Shared startup, personal service port
+
+Shared `echo-kit.toml` (the project-owned `echo/start_web.py` must read `WEB_PORT`, stay in the foreground and propagate failure):
+
+```toml
+schema_version = 1
+[projects.web]
+path = "."
+[services.web]
+project = "web"
+command = ["{python}", "echo/start_web.py"]
+port = 3000
+[services.web.env]
+WEB_PORT = "3000"
+[services.web.ready]
+url = "http://127.0.0.1:3000/health"
+```
+
+Private `.echo-kit/local.toml`:
+
+```toml
+[services.web]
+port = 3100
+[services.web.env]
+WEB_PORT = "3100"
+[services.web.ready]
+url = "http://127.0.0.1:3100/health"
+```
+
+The command remains shared; the declared `port` is overridden. Update any project-specific consumers of the URL as well. A hard-coded script must first gain a project-supported input; changing only `port` does not change where it listens. This sample script name is not a Kit-provided command.
+
+#### Selected environment
+
+Shared `echo-kit.toml`:
+
+```toml
+schema_version = 1
+default_environment = "development"
+[environments.development.browser]
+port = 19323
+viewer_port = 19324
+```
+
+Private `.echo-kit/local.toml`:
+
+```toml
+[environments.development.browser]
+port = 19423
+viewer_port = 19424
+```
+
+#### Local source directory
+
+Shared `echo-kit.toml`:
+
+```toml
+schema_version = 1
+[projects.api]
+path = "backend"
+```
+
+Private `.echo-kit/local.toml` (replace with the actual existing directory; on POSIX use a native absolute path):
+
+```toml
+[projects.api]
+path = 'D:\work\personal-api'
+```

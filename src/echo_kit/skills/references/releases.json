@@ -70,5 +70,13 @@
     "applies_when": "Requested cases require authenticated identities, roles or tenant membership.",
     "steps": "Read guide echo-init; reuse project account preparation or add a project script when absent. Execute within existing authorization, verify login and required role/tenant, and retain only appropriate reusable identities.",
     "no_change_when": "Anonymous cases skip preparation. Existing scripts, auth adapters, business accounts and exported project edits remain unchanged."
+  },
+  {
+    "version": "0.8.4",
+    "changes": "Guidance separates shared team configuration, machine-local overrides, runtime registration and secrets.",
+    "configuration": "Existing echo-kit.toml, .echo-kit/local.toml and environment tables; merge behavior unchanged.",
+    "applies_when": "Onboarding or debugging requires local ports, paths or other machine-specific settings.",
+    "steps": "Read guide echo-init; classify values, use minimal local overrides in the matching environment, reconcile startup and readiness, verify ignore and tracking status. Compare exported copies in an empty directory before merging.",
+    "no_change_when": "Correctly separated existing projects need no migration. No automatic port allocation or business project changes."
   }
 ]

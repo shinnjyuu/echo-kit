@@ -148,3 +148,6 @@ On an interactive Windows desktop, starting/reusing managed services or a manage
 For cases requiring authentication, onboarding guidance first reuses project test identities, seeds and registration/management commands. When no repeatable entry exists, write a project-owned preparation script. Preparation remains explicit; login, service startup and Verify do not silently create accounts. Skip anonymous cases.
 
 Verify login and the required role/tenant separately. Reuse matching identities without password resets or privilege expansion; retain reusable identities and clean only this run's temporary creations. Read `echo-kit guide echo-init` for the bundled checklist and pseudocode. No new account-management CLI is introduced.
+
+
+Share startup commands, relative paths and team defaults. Keep machine-specific port allocations and absolute paths in ignored, untracked `.echo-kit/local.toml`. AI guidance checks environment precedence and related readiness settings while preserving team startup workflows. See [paired configuration examples](docs/protocol.md#shared-and-local-configuration).
