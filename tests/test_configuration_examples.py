@@ -9,7 +9,7 @@ from echo_kit.documentation import resources
 
 
 def pairs():
-    content = resources()['references/protocol.md'].decode().split('### Paired configuration examples')[1]
+    content = resources()['references/protocol.md'].decode().split('### Paired configuration examples')[1].split('\n## ')[0]
     blocks = re.findall(r'```toml\r?\n(.*?)```', content, re.S)
     assert len(blocks) == 8
     return list(zip(blocks[::2], blocks[1::2]))

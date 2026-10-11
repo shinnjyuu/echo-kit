@@ -1,0 +1,69 @@
+[
+  {
+    "id": "configuration",
+    "description": "Before editing shared/local/environment configuration",
+    "sections": [
+      "Configuration",
+      "Shared and local configuration"
+    ],
+    "references": []
+  },
+  {
+    "id": "cases",
+    "description": "Discover experiments, register adapters, inspect results and cleanup",
+    "sections": [
+      "Experiment directory and layered reading",
+      "Experiment and verification subprocess",
+      "Browser and records"
+    ],
+    "references": []
+  },
+  {
+    "id": "services",
+    "description": "Before managing services or preparing their dependencies",
+    "sections": [
+      "Managed service lifetime",
+      "Parallel service startup",
+      "Shared operations (local user)"
+    ],
+    "references": []
+  },
+  {
+    "id": "browser",
+    "description": "Before browser debugging, container changes or viewer recovery",
+    "sections": [
+      "Visible browser",
+      "Current guides and release notes",
+      "Windows tray viewer (0.8.0+)"
+    ],
+    "references": []
+  },
+  {
+    "id": "auth",
+    "description": "Before authentication or test identity preparation",
+    "sections": [
+      "Authentication subprocess",
+      "Test identity preparation"
+    ],
+    "references": [
+      "references/test-identities.md"
+    ]
+  },
+  {
+    "id": "documents",
+    "description": "Before changing project document structure or sharing private conclusions",
+    "sections": [
+      "Shared and private project documents"
+    ],
+    "references": []
+  },
+  {
+    "id": "updates",
+    "description": "Before adapting upgraded tools or merging exported Skills",
+    "sections": [
+      "Latest-version execution",
+      "Current guides and release notes"
+    ],
+    "references": []
+  }
+]

@@ -1,6 +1,7 @@
 """Offline documentation belonging to the running distribution."""
 import hashlib
 import json
+import re
 from importlib.resources import files
 from pathlib import Path
 from packaging.version import Version, InvalidVersion
@@ -55,11 +56,7 @@ def show(name=None):
     if relative not in data:
         raise KitError('Unknown Skill: ' + str(name))
     content = data[relative].decode('utf-8')
-    references = []
-    reference = 'references/test-identities.md'
-    if name is not None and '(../' + reference + ')' in content:
-        references.append({'path': reference, 'content': data[reference].decode('utf-8')})
-    return {'status': 'passed', **tool_info(), 'path': relative, 'content': content, 'references': references}
+    return {'status': 'passed', **tool_info(), 'path': relative, 'content': content, 'references': []}
 
 
 def render_document(document):
@@ -85,9 +82,39 @@ def notes(since=None):
             'coverage': {'first': entries[0]['version'], 'last': entries[-1]['version']}, 'warning': warning}
 
 
-def guide(name):
+def guide(name, topic=None, full=False):
+    if topic is not None and full:
+        raise KitError('--topic and --full are mutually exclusive')
     skill, protocol, release = show(name), show(), notes()
-    return {'status': 'passed', **tool_info(), 'skill': skill, 'protocol': protocol, 'updates': release}
+    data = resources()
+    topics = json.loads(data['references/topics.json'])
+    selected = next((item for item in topics if item['id'] == topic), None)
+    if topic is not None and selected is None:
+        raise KitError('Unknown guide topic; read guide ' + name + ' for the directory')
+    sections = {}
+    parts = re.split(r'(?m)^## ', protocol['content'])
+    for part in parts[1:]:
+        sections[part.splitlines()[0].strip()] = '## ' + part
+    mode = 'full' if full else 'topic' if selected else 'compact'
+    protocol['scope'] = mode
+    if not full:
+        titles = ['Core rules'] + (selected['sections'] if selected else [])
+        protocol['content'] = '\n'.join(sections[title] for title in dict.fromkeys(titles))
+    references = sorted({ref for item in (topics if full else [selected] if selected else [])
+                         for ref in item.get('references', [])})
+    protocol['references'] = [{'path': ref, 'content': data[ref].decode('utf-8')} for ref in references]
+    directory = [{'id': item['id'], 'description': item['description'],
+                  'command': ['echo-kit', 'guide', name, '--topic', item['id']]} for item in topics]
+    return {'status': 'passed', **tool_info(), 'mode': mode, 'topic': topic, 'topics': directory,
+            'skill': skill, 'protocol': protocol, 'updates': release}
+
+
+def render_guide(result):
+    directory = '\n'.join(f"- {t['id']}: {t['description']} — `{' '.join(t['command'])}`"
+                          for t in result['topics'])
+    return (f"Echo Kit {result['version']} · {result['mode']}\n\n" + render_document(result['skill'])
+            + '\n' + render_document(result['protocol']) + '\n## Topics\n\n' + directory
+            + '\n\n' + render_notes(result['updates']))
 
 
 def render_notes(result):

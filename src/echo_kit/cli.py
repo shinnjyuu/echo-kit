@@ -23,7 +23,7 @@ def parser():
     top = p.add_subparsers(dest='module', required=True)
     for module, actions in {'workspace': ['init', 'check'], 'services': ['up', 'status', 'down', 'restart', 'logs'],
                             'auth': ['login', 'check', 'logout'], 'browser': ['up', 'status', 'down'],
-                            'lab': ['run', 'compare'], 'verify': ['run'],
+                            'cases': ['list', 'show'], 'lab': ['run', 'compare'], 'verify': ['run'],
                             'operations': ['list', 'show', 'resolve'],
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
@@ -47,7 +47,18 @@ def parser():
                  'browser up opens it once in the system browser (disable with browser.auto_open=false; CI defaults off). '
                  'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
                 if module == 'browser' else {}))
-            if module == 'docs' and action == 'show':
+            if module in ('cases', 'runs') and action == 'list':
+                cmd.add_argument('--limit', type=int, default=20, help='Page size (1..200; default 20)')
+                cmd.add_argument('--offset', type=int, default=0, help='Nonnegative page offset')
+                if module == 'cases':
+                    cmd.add_argument('--category', help='Browse a classification subtree')
+                    cmd.add_argument('--query', help='Search IDs, descriptions and tags without reading documents')
+                else:
+                    cmd.add_argument('--case', help='Filter by exact case ID')
+                    cmd.add_argument('--status', help='Filter by exact recorded status')
+            elif module == 'cases':
+                cmd.add_argument('name')
+            elif module == 'docs' and action == 'show':
                 cmd.add_argument('scope', choices=['shared', 'private'])
             elif module == 'updates':
                 if action == 'notes':
@@ -75,7 +86,11 @@ def parser():
                     cmd.add_argument('name')
                 elif action in ('export', 'status'):
                     cmd.add_argument('destination')
-    top.add_parser('guide', help='Read a Skill, protocol and release notes from this package').add_argument('name')
+    guide = top.add_parser('guide', help='Read compact rules and topic directory from this package')
+    guide.add_argument('name')
+    mode = guide.add_mutually_exclusive_group()
+    mode.add_argument('--topic', help='Read one topic from the guide directory')
+    mode.add_argument('--full', action='store_true', help='Read the complete protocol and reference documents')
     top.add_parser('doctor')
     return p
 
@@ -92,7 +107,7 @@ def dispatch(args):
         return tray.start(Workspace(args.workspace, args.environment))
     if args.module == 'guide':
         from .documentation import guide
-        return guide(args.name)
+        return guide(args.name, topic=args.topic, full=args.full)
     if args.module == 'updates' and args.action == 'notes':
         from .documentation import notes
         return notes(args.since)
@@ -155,10 +170,15 @@ def dispatch(args):
                 'documents': summary(ws),
                 'tool': tool_info(), 'update': ws.tool_update,
                 'unfinished_runs': [p.parent.name for p in ws.runs.glob('*/active.json')]}
+    if args.module == 'cases':
+        from . import catalogs
+        return (catalogs.cases(ws, args.category, args.query, args.limit, args.offset)
+                if args.action == 'list' else catalogs.case(ws, args.name))
     if args.module == 'runs':
         from .runs import locate, compare, report
         if args.action == 'list':
-            return [read(p) for p in sorted(ws.runs.glob('*/run.json'))]
+            from .catalogs import runs
+            return runs(ws, args.case, args.status, args.limit, args.offset)
         path = locate(ws, args.ids[0])
         if args.action == 'show':
             return read(path / 'run.json')
@@ -254,8 +274,8 @@ def main(argv=None):
         from .documentation import render_document
         print(render_document(result))
     elif args is not None and code == 0 and args.module == 'guide':
-        from .documentation import render_notes, render_document
-        print(f"Echo Kit {result['version']}\n\n" + render_document(result['skill']) + '\n' + result['protocol']['content'] + '\n' + render_notes(result['updates']))
+        from .documentation import render_guide
+        print(render_guide(result))
     elif args is not None and code == 0 and args.module == 'updates' and args.action == 'notes':
         from .documentation import render_notes
         print(f"Echo Kit {result['version']}\n\n" + render_notes(result))

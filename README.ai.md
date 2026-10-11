@@ -54,7 +54,7 @@ echo-kit skills export "EMPTY_SKILLS_DIR"
 | `references/protocol.md` | 配置与子进程协议，和仓库 `docs/protocol.md` 同步 |
 | `.echo-kit-skills.json` | 导出版本与文件摘要，用于识别旧副本和项目修改 |
 
-先阅读导出的 `echo-init/SKILL.md` 和 `references/protocol.md`，再配置工作区或编写适配器。无需启用所有能力；Lab 和 Workbench 可以独立使用。
+先阅读导出的 `echo-init/SKILL.md` 和协议的核心规则，再按操作读取配置、适配器等相关章节。无需启用所有能力；Lab 和 Workbench 可以独立使用。
 
 Skills 的安装位置遵循当前 AI 助手与目标项目的约定，导出命令不会修改助手配置。如果目标 Skills 目录已有内容，先导出到单独的空目录，再检查差异、保留已有修改并合并所需文件。保持各 Skill 与 `references/protocol.md` 的相对路径关系，不能只复制一个 `SKILL.md`。
 
@@ -187,7 +187,7 @@ echo-kit updates notes
 echo-kit updates notes --since 0.5.0
 ```
 
-指南一次返回同一执行包的 Skill、协议、当前更新说明和版本；支持 `--json`，无需工作区。普通调用检查最新版，`--offline` 读取当前可用包。`--version` 和 `runtime info` 是安装入口的诊断信息，不能代替业务执行版本。自动升级提示不代表项目已适配。
+指南默认返回同一执行包的精简 Skill、核心规则、主题目录、当前更新说明和版本；按需使用 `--topic TOPIC`，`--full` 才返回完整协议和参考资料；支持 `--json`，无需工作区。普通调用检查最新版，`--offline` 读取当前可用包。`--version` 和 `runtime info` 是安装入口的诊断信息，不能代替业务执行版本。自动升级提示不代表项目已适配。
 
 前端调试推荐 **Kit 管理的 Docker 浏览器与只读 noVNC**。Docker 或构建失败时先处理错误，不自动改接外部浏览器。已有 `browser.endpoint` 仍生效，但只是显式兼容例外：Kit 不管理其镜像、显示模式和观看页，也不保证外部观看链接只读。查看 `browser up/status` 的能力信息；要切换时先检查配置来源和运行占用，在授权范围内调整配置后启动托管浏览器，不停止或接管原外部容器。
 
@@ -233,3 +233,12 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 验证实际解析的非秘密值，按需启动检查，不输出完整配置。检查私有文件既被忽略又未被 Git 跟踪：已有跟踪不会被新增 ignore 规则解除，发现后报告处理建议，不自动删除文件或改写历史。在授权范围内整理混入共享配置的个人值，保留团队默认值和项目修改。私有存储不等于加密。
 
 可复制的成对示例见[公开协议](docs/protocol.md#shared-and-local-configuration)，也可通过 `echo-kit guide echo-init` 或 `echo-kit protocol show` 从执行中的安装包读取。已有导出副本需导出到空目录后比较合并。
+
+
+## 实验目录与分层读取（0.9.0）
+
+先用 `echo-kit cases list` 浏览分类，或 `cases list --query 登录` 搜索名称、描述与标签，再用 `cases show CASE` 读取选中的说明和声明的前置条件。用例可添加 description/category/tags/docs 元数据，继续复用原有配置和脚本。分类不要求与磁盘目录一致，旧用例仍可发现和运行。
+
+项目入口只维护概况、必要团队规则和目录入口；每个实验独立说明目的、适用条件、准备事项、命令和结论；源码、日志、截图与 trace 需要时再读。修改配置、服务、浏览器、认证或适配器前，读取 `guide NAME --topic TOPIC` 对应主题。默认指南不再附带完整协议和参考资料；`--full` 可完整读取，`skills show` 只返回 Skill 本身，完整导出继续可用。
+
+`runs list --case CASE` 默认只列最近 20 条摘要，使用 `--limit`（1..200）和 `--offset` 翻页。JSON 从完整记录数组改为包含 items、total、next_offset 等字段的对象；选中后用 `runs show ID` 读取完整记录。分页不替代完整的占用和未完成清理检查。列表不读取脚本或日志正文，私有补充仍需显式读取，不自动迁移已有文档。

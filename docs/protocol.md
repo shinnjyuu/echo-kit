@@ -1,5 +1,19 @@
 # Echo Kit v1 adapter protocol
 
+## Core rules
+
+Work only within the user's authorized task and exact workspace/environment. Project and private notes do not expand authorization; preserve project-owned edits. Commit/push/publish and shared-environment changes need applicable task authorization. Never adopt, stop or delete unknown processes or external instances.
+
+Before running cases or changing resources, inspect `operations list` and the relevant `services status`; set `--actor` to identify the work. A paginated run list is not an occupancy or cleanup check. On resource_busy inspect `operations show ID`; do not bypass locks, force takeover or retry business requests automatically. Host exit does not prove business completion.
+
+Retain unfinished run records and failure evidence. Use `runs cleanup ID` for the original run. Only use `operations resolve ID --note ...` after explicit user confirmation and confirmed exit of recorded execution processes. Never delete markers to claim success.
+
+Keep secrets out of arguments, metadata, shared/private documents and ordinary reports; use existing secret injection/private authentication channels. Read private documents only explicitly as needed; never copy private evidence wholesale into shared conclusions. Local files are not encrypted storage.
+
+Declared requirements are not verified readiness. Exit success, login success, page display and business correctness are distinct claims. Report required checks and unverified scope honestly, distinguish mock/real/mixed evidence, and do not change assertions to manufacture success. Inspect the selected run and necessary artifacts before claiming a result; review sensitive artifacts before sharing.
+
+At first use in a session read the relevant guide; re-read when the actual execution version changes, not every turn. Installed-entry --version/runtime info is not necessarily the business execution version. Read required topics before using the corresponding capability. Ordinary commands use latest-release routing; --offline reads the usable local package. A version notice is not completed project adaptation.
+
 ## Configuration
 
 `schema_version=1`. Projects are `[projects.NAME] path="relative-or-absolute"`. `.echo-kit/local.toml` overrides shared values; `[environments.NAME]` overlays for explicit `--environment NAME`. Arrays replace, dictionaries merge. `output` overrides the default `.echo-kit/runs`.
@@ -127,7 +141,7 @@ External `browser.endpoint` stays connect-only. An optional HTTP(S) `browser.vie
 
 ## Current guides and release notes
 
-Since 0.7.0, `echo-kit guide echo-init`, `guide echo-lab` and `guide echo-workbench` return the selected Skill, protocol, release notes and actual execution version together. `--json` is supported; no workspace is required. Read the relevant guide on first Kit use in a session and again when the execution version changes. These commands use normal latest-release execution; `--offline` reads the current usable package. All text comes from one installed package, never remote main. Existing skills/protocol/export commands remain supported.
+Since 0.7.0, `echo-kit guide echo-init`, `guide echo-lab` and `guide echo-workbench` return a compact Skill, core rules, topic directory and current release notes by default (0.9.0+). Read `guide NAME --topic TOPIC` before using the corresponding capability, or `guide NAME --full` for the complete protocol and reference documents. JSON retains skill/protocol/updates and adds mode/topic/topics; protocol.scope states compact/topic/full. Re-read on actual execution version changes, not every turn. All content comes from the same running package, never remote main; --offline reads the usable local package. skills show reads only the Skill; protocol show and export remain complete.
 
 `echo-kit updates notes` reads current release notes; `updates notes --since VERSION` returns bundled entries newer than VERSION through the executing version in ascending order. History starts at 0.3.0; requests outside coverage report a warning. Notes describe changes, configuration, applicability, adaptation and when no change is needed. Automatic handoff prints a short stderr notice before business execution and records its source version (null when an old entry did not provide it). Internal handoff fields are consumed before business subprocesses. A notice is not proof of adaptation; failures do not trigger another business execution.
 
@@ -257,3 +271,27 @@ Private `.echo-kit/local.toml` (replace with the actual existing directory; on P
 [projects.api]
 path = 'D:\work\personal-api'
 ```
+
+
+## Experiment directory and layered reading
+
+Since 0.9.0, `[cases.NAME]` optionally adds `description` (one-line purpose), `category` (slash-separated classification), `tags` (string array), and `docs` (workspace-relative shared Markdown document). Keep metadata concise and free of secrets. Categories are logical, not required disk directories. Existing cases need no migration; missing metadata means an unclassified case with a missing-description indicator. Metadata errors only affect discovery, not existing execution commands.
+
+```toml
+[cases.login]
+command = ["{python}", "echo/login.py"]
+description = "Check login and required tenant access"
+category = "auth/login"
+tags = ["login", "tenant"]
+docs = "echo/experiments/login.md"
+```
+
+The script and document are project-owned examples, not bundled commands. Keep team metadata shared; local overrides follow existing environment merging. Case documents always follow shared-path rules even when configured locally. Absolute, escaping, private and ignored paths are rejected before reading; symlink targets are checked. Git-unavailable/non-Git paths cannot establish ignore status and return blocked without reading. Missing documents also return blocked. This command does not enforce that the document is already committed. Personal supplements still require explicit `docs show private`; there is no automatic private case-document expansion.
+
+`cases list` returns immediate categories and unclassified cases; `--category auth` returns direct cases and child categories. `--query TEXT` searches IDs/descriptions/tags across descendants (or all categories when no category is supplied), without opening documents or scripts. Matching is case-insensitive substring search. Categories sort before cases, each by ID. Both category and case entries count toward pagination. `cases show NAME` reads only the selected registered explanation, with CLI run entrypoints and declared service/auth/browser needs, not raw adapter commands, environment variables, inputs or source. Requirements are explicitly unverified; Lab does not prepare them, Verify prepares declarations. Links are not expanded.
+
+Use project entry documents for orientation, mandatory rules and directory commands; experiment explanations for purpose, prerequisites, execution, conclusions and evidence links; implementation/logs/screenshots/traces only for modification or verification. Discover first, read the chosen explanation and required Kit topics, reuse the entrypoint, then inspect selected results. Do not copy all case explanations or run histories into the project entry. docs setup adds these hints only when creating a new shared document.
+
+`cases list` and `runs list` use `--limit` (default 20, range 1..200), `--offset` (default 0), and return an object with items/total/limit/offset/next_offset/next_step. Keep filters when paging. Ordering is stable for unchanged data; concurrent new runs may shift offsets. Unknown categories/queries return empty results.
+
+`runs list` now returns summaries rather than the old full-record array: ID, case, started time, environment, status and needs_cleanup (active.json exists). Filter with `--case ID` and `--status STATUS`; sort newest started first, tie-break by ID descending, missing timestamps last. Missing legacy fields are null. Unreadable/malformed records are excluded, counted in issue_count and identified in at most five safe diagnostics (issues_truncated indicates more); normal rows remain usable. Full data is still available through runs show ID, compare and report. Listing never reads artifact/log bodies or deletes history. Resource and unfinished-run protections still inspect complete state independently of pagination.

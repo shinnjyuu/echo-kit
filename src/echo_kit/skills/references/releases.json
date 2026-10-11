@@ -78,5 +78,13 @@
     "applies_when": "Onboarding or debugging requires local ports, paths or other machine-specific settings.",
     "steps": "Read guide echo-init; classify values, use minimal local overrides in the matching environment, reconcile startup and readiness, verify ignore and tracking status. Compare exported copies in an empty directory before merging.",
     "no_change_when": "Correctly separated existing projects need no migration. No automatic port allocation or business project changes."
+  },
+  {
+    "version": "0.9.0",
+    "changes": "Case categories/search and layered guides; runs list defaults to paginated summaries instead of complete records.",
+    "configuration": "Optional cases description/category/tags/docs. Existing execution and configuration precedence unchanged.",
+    "applies_when": "Discovering growing experiment collections, reading guides or consuming runs list JSON.",
+    "steps": "Use cases list/show; read guide topics before the relevant capability, --full for full references. Update runs list consumers from an array to items plus pagination; use runs show for full records. skills show no longer auto-appends references. Preserve existing project files and exported edits.",
+    "no_change_when": "Existing lab/verify adapters and unannotated cases keep running. No automatic script moves, private reads or history deletion."
   }
 ]

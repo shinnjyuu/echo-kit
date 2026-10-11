@@ -129,7 +129,7 @@ Existing containers do not silently change modes. After active experiments finis
 
 ## Current guides and upgrade guidance
 
-On first Kit use in an AI session, read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`. Read again when the execution version changes. Each combines the Skill, protocol, release notes and actual version from one package; JSON and workspace-free reads are supported. Ordinary calls check the latest release; `--offline` reads the usable package. Installed-entry diagnostics (`--version`, `runtime info`) are not business execution provenance.
+On first Kit use in an AI session, read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`. Read again when the execution version changes. Each returns a compact Skill, core rules, topic directory, release notes and actual version from one package; use `--topic TOPIC` for details or `--full` for the full protocol and references; JSON and workspace-free reads are supported. Ordinary calls check the latest release; `--offline` reads the usable package. Installed-entry diagnostics (`--version`, `runtime info`) are not business execution provenance.
 
 Use `echo-kit updates notes` for this release or `echo-kit updates notes --since 0.5.0` for later bundled history. An upgrade notice does not mean the project has been adapted.
 
@@ -147,7 +147,14 @@ On an interactive Windows desktop, starting/reusing managed services or a manage
 
 For cases requiring authentication, onboarding guidance first reuses project test identities, seeds and registration/management commands. When no repeatable entry exists, write a project-owned preparation script. Preparation remains explicit; login, service startup and Verify do not silently create accounts. Skip anonymous cases.
 
-Verify login and the required role/tenant separately. Reuse matching identities without password resets or privilege expansion; retain reusable identities and clean only this run's temporary creations. Read `echo-kit guide echo-init` for the bundled checklist and pseudocode. No new account-management CLI is introduced.
+Verify login and the required role/tenant separately. Reuse matching identities without password resets or privilege expansion; retain reusable identities and clean only this run's temporary creations. Read `echo-kit guide echo-init --topic auth` for the bundled checklist and pseudocode. No new account-management CLI is introduced.
 
 
 Share startup commands, relative paths and team defaults. Keep machine-specific port allocations and absolute paths in ignored, untracked `.echo-kit/local.toml`. AI guidance checks environment precedence and related readiness settings while preserving team startup workflows. See [paired configuration examples](docs/protocol.md#shared-and-local-configuration).
+
+
+## Find experiments without loading everything
+
+Use `echo-kit cases list` to browse categories, `cases list --query login` to search concise metadata, then `cases show CASE` to read only the selected explanation. Optional case description/category/tags/docs reuse existing configuration and files. Read `guide NAME --topic TOPIC` before the related capability; full documents remain available with `--full` and export.
+
+`runs list --case CASE` now returns the latest 20 summaries, not full records; `--limit` (1..200) and `--offset` page through results. JSON consumers must use `items` plus pagination instead of the old array; `runs show ID` retains the complete record. Keep mandatory rules in the project entry, experiment explanations separately, and source/logs/traces as on-demand evidence. Existing cases and scripts keep working.
