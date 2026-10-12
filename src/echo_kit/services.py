@@ -3,7 +3,7 @@ import subprocess
 import time
 import urllib.request
 import hashlib
-from contextlib import nullcontext, contextmanager
+from contextlib import nullcontext, contextmanager, ExitStack
 from pathlib import Path
 
 from .core import KitError, read, save, safe_name, versions
@@ -81,31 +81,93 @@ class Services:
         self.ws = ws
         self.file = ws.state / ('services-' + safe_name(ws.environment) + '.json')
 
+    def instances(self):
+        from .service_registry import Registry, key
+        registry = Registry()
+        local = read(self.file, {})
+        result = {}
+        for name, spec in self.ws.cfg.get('services', {}).items():
+            if spec.get('mode', 'managed') == 'external':
+                continue
+            value = registry.get(key(self.ws, name))
+            if name in local and 'identity' in local[name]:
+                result[name] = {**local[name], 'legacy': True}
+            elif value:
+                result[name] = value
+        return result
+
     def _save_item(self, name, value):
-        from filelock import FileLock
-        self.file.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(str(self.file) + '.lock', timeout=5):
-            state = read(self.file, {})
-            if value is None:
-                state.pop(name, None)
-            else:
-                state[name] = value
-            save(self.file, state)
+        from .service_registry import Registry
         if value is not None:
+            Registry().create(self.ws, name, value)
             notify(self.ws)
 
-    def status(self):
-        state = read(self.file, {})
+    def status(self, probe=True):
+        from .service_registry import process_state
+        state = self.instances()
         from .operations import Journal, service_resources
         operations = Journal().list()
-        return {name: {'mode': spec.get('mode', 'managed'),
-                       'owned': name in state and matches(state[name]['identity']),
-                       'ready': healthy(self.ws, spec),
-                       'instance': state.get(name),
-                       'source_changed_since_start': self._source_changed(spec, state.get(name)),
-                       'occupants': [op for op in operations if set(op['held']).intersection(
-                           service_resources(self.ws, [name], builds=False))]}
-                for name, spec in self.ws.cfg.get('services', {}).items()}
+        result = {}
+        for name, spec in self.ws.cfg.get('services', {}).items():
+            instance = state.get(name)
+            actual = process_state(instance['identity']) if instance else None
+            occupants = [op for op in operations if set(op['held']).intersection(
+                service_resources(self.ws, [name], builds=False))]
+            result[name] = {'mode': spec.get('mode', 'managed'),
+                           'owned': actual == 'running',
+                           'process_state': actual,
+                           'ready': healthy(self.ws, spec) if probe else None,
+                           'instance': instance,
+                           'origin': instance.get('origin') if instance else None,
+                           'references': instance.get('references', []) if instance else [],
+                           'migration_required': bool(instance and instance.get('legacy')),
+                           'source_changed_since_start': self._source_changed(spec, instance),
+                           'occupants': occupants,
+                           'users': [{'operation_id': o['id'], 'workspace': o['workspace'],
+                                      'environment': o['environment'], 'state': o['state']}
+                                     for o in occupants if o['run_id']]}
+        return result
+
+    @contextmanager
+    def reservation(self, names, action, access='shared', run_id=None, evidence=None, extra=None, force=False):
+        from filelock import FileLock, Timeout
+        from .service_registry import Registry, key, process_state
+        from .operations import operation, service_resources, Journal, service_names
+        if access not in ('shared', 'exclusive'):
+            raise KitError('service_access must be shared or exclusive')
+        names = service_names(self.ws, names)
+        registry = Registry()
+        with ExitStack() as startup_locks:
+            registry.root.mkdir(parents=True, exist_ok=True)
+            for identity in sorted({key(self.ws, n) for n in names
+                                    if self.ws.cfg['services'][n].get('mode', 'managed') != 'external'}):
+                try:
+                    startup_locks.enter_context(FileLock(str(registry.root / (identity + '.startup.lock')), timeout=30))
+                except Timeout as cause:
+                    error = KitError('Shared service startup wait timed out; inspect operations list')
+                    if evidence:
+                        from .runs import report
+                        record = read(Path(evidence) / 'run.json')
+                        record.update(status='blocked', reason=str(error), finished=time.time())
+                        save(Path(evidence) / 'run.json', record)
+                        report(Path(evidence))
+                    raise error from cause
+            resources = dict(extra or {})
+            for name in names:
+                spec = self.ws.cfg['services'][name]
+                record = registry.get(key(self.ws, name)) if spec.get('mode', 'managed') != 'external' else None
+                mode = 'exclusive' if force or (spec.get('mode', 'managed') != 'external' and
+                                                (not record or process_state(record['identity']) != 'running')) else access
+                for resource, value in service_resources(self.ws, [name], builds=mode == 'exclusive', access=mode).items():
+                    resources[resource] = 'exclusive' if 'exclusive' in (value, resources.get(resource)) else 'shared'
+            from .operations import _held
+            outer = {oid for oid, _ in _held.get()}
+            with operation(self.ws, action, resources, run_id, evidence) as oid:
+                def prepared():
+                    if oid not in outer:
+                        Journal().downgrade_services(oid, service_resources(self.ws, names, builds=False, access=access))
+                    startup_locks.close()
+                yield oid, prepared
 
     def _source_changed(self, spec, instance):
         if not instance or not instance.get('source'):
@@ -117,19 +179,21 @@ class Services:
 
     @startup_scope
     def up(self, names, jobs=None):
-        from .operations import operation, service_resources
         names, jobs = self._plan(names, jobs)
-        with operation(self.ws, 'services.up', service_resources(self.ws, names)):
-            return self._up_all(names, jobs)
+        with self.reservation(names, 'services.up') as (_, prepared):
+            result = self._up_all(names, jobs)
+            prepared()
+            return result
 
     @startup_scope
     def restart(self, names, jobs=None):
-        from .operations import operation, service_resources
-        selected = list(names)
-        names, jobs = self._plan(names, jobs)
-        with operation(self.ws, 'services.restart', service_resources(self.ws, names)):
+        selected = list(names) if names else self.started_here()
+        names, jobs = self._plan(selected, jobs)
+        with self.reservation(names, 'services.restart', force=True) as (_, prepared):
             self._down(selected)
-            return self._up_all(names, jobs)
+            result = self._up_all(names, jobs)
+            prepared()
+            return result
 
     def _plan(self, names, jobs):
         from .startup import validate
@@ -145,8 +209,20 @@ class Services:
         if name not in specs:
             raise KitError('Unknown service: ' + name)
         spec = specs[name]
-        state = read(self.file, {})
-        own = name in state and matches(state[name]['identity'])
+        from .service_registry import Registry, key, process_state
+        registry = Registry()
+        if spec.get('mode', 'managed') != 'external':
+            registry.migrate(self.ws, name, read(self.file, {}).get(name))
+        state = self.instances()
+        own = name in state and process_state(state[name]['identity']) == 'running'
+        if name in state:
+            if not state[name].get('retired'):
+                registry.compatible(self.ws, name, state[name])
+            if process_state(state[name]['identity']) not in ('running', 'stopped'):
+                raise KitError('Service identity is uncertain; inspect registration: ' + name)
+            if own and not healthy(self.ws, spec):
+                raise KitError('Registered service is unhealthy; explicit restart required: ' + name)
+            registry.reference(self.ws, name, key(self.ws, name))
         if spec.get('mode', 'managed') == 'external':
             with phase(timings, 'ready', name):
                 if not healthy(self.ws, spec):
@@ -240,40 +316,50 @@ class Services:
             cancel.wait(.1)
         raise KitError('Service readiness timed out: ' + name)
 
+    def started_here(self):
+        return [name for name, record in self.instances().items()
+                if record.get('origin', {}).get('workspace') == str(self.ws.root)
+                and record.get('origin', {}).get('environment') == self.ws.environment]
+
     def down(self, names):
         from .operations import operation, service_resources
-        names = names or list(read(self.file, {}))
-        with operation(self.ws, 'services.down', service_resources(self.ws, names, builds=False)):
-            return self._down(names)
+        selected = list(names) if names else self.started_here()
+        with operation(self.ws, 'services.down', service_resources(self.ws, selected, builds=False)):
+            return self._down(selected)
 
     def _down(self, names):
-        state = read(self.file, {})
-        selected = set(names or state)
-        unknown = selected - self.ws.cfg.get('services', {}).keys() - state.keys()
-        if unknown:
-            raise KitError('Unknown services: ' + ', '.join(sorted(unknown)))
-        for name in state:
-            if name not in selected and selected.intersection(self.ws.cfg.get('services', {}).get(name, {}).get('depends', [])):
-                raise KitError('A running dependent service was not selected: ' + name)
-        pending = set(selected)
+        from .service_registry import Registry, key
+        registry = Registry()
+        state = self.instances()
+        pending = set(names)
+        if pending - self.ws.cfg.get('services', {}).keys():
+            raise KitError('Unknown selected service')
+        for name in pending:
+            if state.get(name, {}).get('legacy'):
+                raise KitError('Legacy service requires verified registration via services up before stopping')
+            if name in state and self.ws.cfg['services'][name].get('mode', 'managed') != 'external':
+                local = read(self.file, {}).get(name, {})
+                if local.get('registry_id') != key(self.ws, name):
+                    raise KitError('Register this workspace reference with services up before stopping')
+        selected_ids = {key(self.ws, n) for n in pending}
+        from .service_registry import process_state
+        for record in registry.all():
+            if (record['registry_id'] not in selected_ids and selected_ids.intersection(record.get('dependencies', []))
+                    and process_state(record['identity']) != 'stopped'):
+                raise KitError('A registered dependent service was not selected')
         while pending:
-            leaves = [n for n in pending if not any(n in self.ws.cfg.get('services', {}).get(x, {}).get('depends', []) for x in pending)]
+            leaves = [n for n in pending if not any(key(self.ws, n) in state.get(x, {}).get('dependencies', []) for x in pending)]
             if not leaves:
-                raise KitError('Service dependency cycle')
+                raise KitError('Registered service dependency cycle')
             for name in leaves:
-                if name in state:
-                    if self.ws.cfg.get('services', {}).get(name, {}).get('mode') == 'external':
-                        pending.remove(name)
-                        continue
-                    stop(state[name]['identity'])
-                    del state[name]
-                    self._save_item(name, None)
+                if name in state and self.ws.cfg['services'][name].get('mode', 'managed') != 'external':
+                    registry.stop_record(state[name])
                 pending.remove(name)
         return self.status()
 
     def logs(self, name):
-        value = read(self.file, {}).get(name)
-        if not value:
-            raise KitError('No owned log for ' + name)
-        from pathlib import Path
+        from .service_registry import process_state
+        value = self.instances().get(name)
+        if not value or value.get('legacy') or process_state(value['identity']) in ('unknown', 'identity_mismatch'):
+            raise KitError('No confirmed owned log for ' + name)
         return {'service': name, 'text': Path(value['log']).read_text(encoding='utf-8', errors='replace')[-16000:]}

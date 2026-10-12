@@ -172,3 +172,9 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 项目入口只维护概况、必要团队规则和目录入口；每个实验独立说明目的、适用条件、准备事项、命令和结论；源码、日志、截图与 trace 需要时再读。修改配置、服务、浏览器、认证或适配器前，读取 `guide NAME --topic TOPIC` 对应主题。默认指南不再附带完整协议和参考资料；`--full` 可完整读取，`skills show` 只返回 Skill 本身，完整导出继续可用。
 
 `runs list --case CASE` 默认只列最近 20 条摘要，使用 `--limit`（1..200）和 `--offset` 翻页。JSON 从完整记录数组改为包含 items、total、next_offset 等字段的对象；选中后用 `runs show ID` 读取完整记录。分页不替代完整的占用和未完成清理检查。列表不读取脚本或日志正文，私有补充仍需显式读取，不自动迁移已有文档。
+
+## 多工作区共享服务
+
+0.10.0 起，相同显式 `services.NAME.resource_id` 可以跨工作区复用同一个受管微服务；启动配置必须相容。未指定 ID 时仍独立。实验默认共享使用，需要避免并发修改数据时设置 `service_access = "exclusive"`。服务使用中不能停止或重启。
+
+浏览器仍按工作区独立，端口避让写本机 `.echo-kit/local.toml`。托盘分别显示共享微服务和各项目观看入口。通过 `echo-kit guide echo-workbench --topic services` 读取接入、旧登记迁移和停止范围说明。

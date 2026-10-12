@@ -17,7 +17,7 @@ Before using a capability, run `echo-kit guide echo-workbench --topic TOPIC` (or
 
 - `configuration`: [shared/local/environment edits](../references/protocol.md#shared-and-local-configuration).
 - `cases`: [case discovery](../references/protocol.md#experiment-directory-and-layered-reading) and [adapter contract](../references/protocol.md#experiment-and-verification-subprocess).
-- `services`: [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
+- `services`: [shared instances and usage](../references/protocol.md#shared-service-instances), [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
 - `browser`: [Docker debugging and viewer](../references/protocol.md#visible-browser), [external exceptions](../references/protocol.md#current-guides-and-release-notes) and [tray](../references/protocol.md#windows-tray-viewer-080).
 - `auth`: [authentication](../references/protocol.md#authentication-subprocess) and [test identity preparation](../references/test-identities.md), only when authentication is needed.
 - `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents).
@@ -30,3 +30,5 @@ Inspect the intended workspace/environment and selected case. Read cases plus to
 Leave owned services available for reuse. On resuming work, check operations and readiness before starting stopped resources; host exit is neither guaranteed survival nor cleanup. Before authenticated verification, read auth and confirm identity preparation, role and tenant separately from login success. Read browser before frontend work: prefer Kit-managed Docker, preserve explicit external exceptions and do not silently fall back.
 
 Inspect the selected run and required evidence. Distinguish HTTP success, visible page, downloaded file, verified content and delivery; report failed and unverified checks honestly.
+
+Before sharing a microservice across workspaces, read services: use an explicit compatible resource_id; keep machine-specific mappings local. Cases default to shared use; choose service_access="exclusive" for non-concurrent data changes. Browser viewers remain workspace-specific. References are not active usage, and old offline Kit sessions do not participate in the new registry.

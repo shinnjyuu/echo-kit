@@ -70,7 +70,7 @@ def parser():
                 if action == 'resolve':
                     cmd.add_argument('--note', required=True)
             elif module == 'services':
-                cmd.add_argument('names', nargs='*')
+                cmd.add_argument('names', nargs='*', help='Service names; down/restart without names select only instances started by this workspace/environment')
                 if action in ('up', 'restart'):
                     cmd.add_argument('--jobs', type=int, help='Concurrent service starts (default: all selected services unless configured; 1 is serial)')
             elif module == 'auth':
@@ -201,7 +201,7 @@ def dispatch(args):
     if args.module == 'services':
         from .services import Services
         service = Services(ws)
-        names = args.names or list(ws.cfg.get('services', {}))
+        names = args.names if args.action in ('down', 'restart') else args.names or list(ws.cfg.get('services', {}))
         return getattr(service, args.action)(names, jobs=args.jobs) if args.action in ('up', 'restart') else getattr(service, args.action)(names)
     if args.module == 'auth':
         from .auth import authenticate

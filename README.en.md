@@ -158,3 +158,9 @@ Share startup commands, relative paths and team defaults. Keep machine-specific 
 Use `echo-kit cases list` to browse categories, `cases list --query login` to search concise metadata, then `cases show CASE` to read only the selected explanation. Optional case description/category/tags/docs reuse existing configuration and files. Read `guide NAME --topic TOPIC` before the related capability; full documents remain available with `--full` and export.
 
 `runs list --case CASE` now returns the latest 20 summaries, not full records; `--limit` (1..200) and `--offset` page through results. JSON consumers must use `items` plus pagination instead of the old array; `runs show ID` retains the complete record. Keep mandatory rules in the project entry, experiment explanations separately, and source/logs/traces as on-demand evidence. Existing cases and scripts keep working.
+
+## Shared services across workspaces
+
+Since 0.10.0, identical explicit `services.NAME.resource_id` values reuse one compatible managed instance under the same local user. Services without an ID stay independent. Cases share service access by default; set `service_access = "exclusive"` for data changes that must not overlap. Active usage blocks stop/restart.
+
+Browsers remain workspace-local. Put local port overrides in `.echo-kit/local.toml`; the tray separates shared services from project viewers. Read `echo-kit guide echo-workbench --topic services` for adoption and stop scope.

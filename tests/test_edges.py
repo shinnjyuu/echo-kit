@@ -32,14 +32,14 @@ def test_partial_startup_and_timeout_preserve_state(ws):
     try:
         with pytest.raises(KitError, match='timed out'):
             manager.up(['bad'])
-        state = read(manager.file)
+        state = manager.instances()
         assert set(state) == {'good', 'bad'}
         assert matches(state['good']['identity'])
         assert Services(ws).status()['good']['ready']
         before = state['good']['identity']
         manager.down(['bad', 'good'])
         manager.up(['good'])
-        assert read(manager.file)['good']['identity'] != before
+        assert manager.instances()['good']['identity'] != before
     finally:
         manager.down([])
 

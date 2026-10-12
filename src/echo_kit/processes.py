@@ -20,9 +20,14 @@ def fingerprint(pid):
 def matches(identity):
     try:
         p = psutil.Process(identity['pid'])
+        if 'command_digest' in identity:
+            from .service_registry import Registry
+            command_matches = Registry().digest(p.cmdline(), create=False) == identity['command_digest']
+        else:
+            command_matches = p.cmdline() == identity['command']
         return (p.status() != psutil.STATUS_ZOMBIE and abs(p.create_time() - identity['created']) < .01
-                and p.exe() == identity['exe'] and p.cmdline() == identity['command'])
-    except (psutil.Error, KeyError):
+                and p.exe() == identity['exe'] and command_matches)
+    except (psutil.Error, OSError, KeyError):
         return False
 
 

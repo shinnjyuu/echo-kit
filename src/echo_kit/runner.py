@@ -20,6 +20,19 @@ def cleanup_run(ws, path):
         cleanup = ws.cfg.get('cases', {}).get(record['case'], {}).get('cleanup')
         if not cleanup or not (path / 'active.json').exists():
             raise KitError('No pending run with configured cleanup adapter')
+        from .service_registry import validate_run_instances
+        from .operations import service_resources
+        if record.get('service_access'):
+            validate_run_instances(record)
+            names = ws.cfg.get('cases', {}).get(record['case'], {}).get('services', [])
+            if set(service_resources(ws, names, builds=False)) != set(record.get('service_resources', {})):
+                raise KitError('Service configuration changed since this run; cleanup requires inspection')
+            from .service_registry import Registry
+            if record.get('cleanup_signature') != Registry().cleanup_signature(ws, cleanup):
+                raise KitError('Cleanup configuration changed since this run; inspect the original target')
+            for name, item in record.get('services', {}).items():
+                if (item.get('instance') or {}).get('registry_id'):
+                    Registry().compatible(ws, name, item['instance'])
         oid = record.get('operation_id')
         journal = Journal()
         if oid:
@@ -68,8 +81,17 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
     case = cases[name]
     if variant != 'baseline' and variant not in case.get('variants', {}):
         raise KitError('Unknown variant: ' + variant)
-    from .operations import operation, service_resources, browser_resources
-    resources = service_resources(ws, case.get('services', []), builds=kind == 'verify')
+    from .operations import operation, service_resources, service_names, browser_resources
+    access = case.get('service_access', 'shared')
+    if access not in ('shared', 'exclusive'):
+        raise KitError('service_access must be shared or exclusive')
+    manager = Services(ws)
+    names = case.get('services', [])
+    if kind == 'verify':
+        names, jobs = manager._plan(names, None)
+    else:
+        names = service_names(ws, names)
+    resources = {}
     if case.get('browser'):
         resources.update(browser_resources(ws))
     if case.get('creates_tasks'):
@@ -79,9 +101,24 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
         inputs = merge(case.get('inputs', {}), case.get('variants', {}).get(variant, {}))
         path, record = new_run(ws, name, kind, inputs)
         record.update(variant=variant, iteration=iteration + 1, mode=case.get('mode', 'unspecified'))
-        with operation(ws, kind + '.run', resources, record['id'], path) as oid:
+        if kind == 'verify':
+            reservation = manager.reservation(names, 'verify.run', access, record['id'], path, resources)
+        else:
+            from contextlib import contextmanager
+            @contextmanager
+            def lab_reservation():
+                with operation(ws, 'lab.run', {**service_resources(ws, names, builds=False, access=access), **resources}, record['id'], path) as oid:
+                    yield oid, lambda: None
+            reservation = lab_reservation()
+        with reservation as (oid, prepared):
             record['operation_id'] = oid
-            record['resources'] = resources
+            from .operations import Journal
+            record['resources'] = Journal().show(oid)['held']
+            record['service_access'] = access
+            record['service_resources'] = service_resources(ws, names, builds=False, access=access)
+            if case.get('cleanup'):
+                from .service_registry import Registry
+                record['cleanup_signature'] = Registry().cleanup_signature(ws, case['cleanup'])
             save(path / 'run.json', record)
             state = None
             try:
@@ -91,9 +128,7 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                     services = case.get('services', [])
                     if services:
                         event(path, record, 'services', 'running')
-                        snapshot = Services(ws).up(services)
-                        from .operations import Journal
-                        Journal().release_builds(oid)
+                        snapshot = {n: v for n, v in manager._up_all(names, jobs).items() if n in names}
                         save(path / 'services.json', snapshot)
                         record['services'] = snapshot
                         event(path, record, 'services', 'passed')
@@ -106,6 +141,11 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                         record['browser'] = browser
                         save(path / 'browser.json', browser)
                         event(path, record, 'browser', 'passed')
+                if kind != 'verify':
+                    record['services'] = {n: v for n, v in manager.status(probe=False).items() if n in names}
+                prepared()
+                record['resources'] = Journal().show(oid)['held']
+                save(path / 'run.json', record)
                 save(path / 'active.json', {'run_id': record['id'], 'phase': 'executing'})
                 request = {'protocol': 1, 'run_id': record['id'], 'inputs': inputs,
                            'environment': ws.environment, 'variant': variant, 'iteration': iteration + 1,

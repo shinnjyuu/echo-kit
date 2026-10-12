@@ -86,5 +86,13 @@
     "applies_when": "Discovering growing experiment collections, reading guides or consuming runs list JSON.",
     "steps": "Use cases list/show; read guide topics before the relevant capability, --full for full references. Update runs list consumers from an array to items plus pagination; use runs show for full records. skills show no longer auto-appends references. Preserve existing project files and exported edits.",
     "no_change_when": "Existing lab/verify adapters and unannotated cases keep running. No automatic script moves, private reads or history deletion."
+  },
+  {
+    "version": "0.10.0",
+    "changes": "Managed resource_id now identifies one shared local service instance across workspaces. Cases use shared service leases by default; browsers stay workspace-local. Tray groups shared instances separately.",
+    "configuration": "Optional cases.NAME.service_access=shared|exclusive. Explicit service IDs require compatible launch inputs. Machine-specific mappings and browser ports belong in local.toml.",
+    "applies_when": "Multiple workspaces use one managed microservice, or existing exclusive-by-default cases modify shared data.",
+    "steps": "Read guide echo-workbench --topic services. Set exclusive access for cases that cannot safely share data. Finish old operations before adopting legacy registrations via services up in the original workspace. Use named down/restart for borrowed services; unnamed commands affect only instances started here. Replace an older tray with tray stop/start. Use the new version in every cooperating session.",
+    "no_change_when": "No-ID services retain workspace/environment-local identity. External instances, business configurations, historical evidence and exported Skills are not automatically migrated. No release or business operations are implied."
   }
 ]

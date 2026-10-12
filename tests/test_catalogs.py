@@ -71,7 +71,7 @@ def test_show_only_selected_shared_document(ws, monkeypatch):
     result = catalogs.case(ws, 'login')
     assert result['status'] == 'passed'
     assert result['document']['content'].startswith('Selected explanation')
-    assert result['requirements'] == {'services': ['api'], 'auth': 'tester', 'browser': True, 'verified': False}
+    assert result['requirements'] == {'services': ['api'], 'service_access': 'shared', 'auth': 'tester', 'browser': True, 'verified': False}
     assert result['entrypoints'][1][-3:] == ['verify', 'run', 'login']
     assert '--environment' not in result['entrypoints'][0]
     assert 'SECRET' not in json.dumps(result)

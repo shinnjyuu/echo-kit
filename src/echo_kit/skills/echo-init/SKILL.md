@@ -17,7 +17,7 @@ Before using a capability, run `echo-kit guide echo-init --topic TOPIC` (or read
 
 - `configuration`: [shared/local/environment edits](../references/protocol.md#shared-and-local-configuration).
 - `cases`: [case discovery](../references/protocol.md#experiment-directory-and-layered-reading) and [adapter contract](../references/protocol.md#experiment-and-verification-subprocess).
-- `services`: [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
+- `services`: [shared instances and usage](../references/protocol.md#shared-service-instances), [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
 - `browser`: [Docker debugging and viewer](../references/protocol.md#visible-browser), [external exceptions](../references/protocol.md#current-guides-and-release-notes) and [tray](../references/protocol.md#windows-tray-viewer-080).
 - `auth`: [authentication](../references/protocol.md#authentication-subprocess) and [test identity preparation](../references/test-identities.md), only when authentication is needed.
 - `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents).
@@ -30,3 +30,5 @@ Use only for requested onboarding. Inspect existing project README, build/test/C
 Read configuration and cases topics before registering capabilities. For requested authenticated cases read auth, inspect reusable identity preparation and verify login plus required role/tenant; anonymous cases skip this. Prepare identities explicitly, never as an implicit login/startup side effect. Report not-needed, reused, created-and-verified or still-needs-preparation.
 
 Within authorized onboarding, read documents before docs setup; preserve existing entries. Validate with workspace check and one minimal authorized test. Report configured, verified and missing capabilities separately. Keep project entry documents short, add concise case metadata and independent explanations without moving existing scripts.
+
+Before sharing a microservice across workspaces, read services: use an explicit compatible resource_id; keep machine-specific mappings local. Cases default to shared use; choose service_access="exclusive" for non-concurrent data changes. Browser viewers remain workspace-specific. References are not active usage, and old offline Kit sessions do not participate in the new registry.

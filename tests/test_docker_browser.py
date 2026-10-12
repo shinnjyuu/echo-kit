@@ -15,6 +15,65 @@ from test_core import free_port
 pytestmark = pytest.mark.skipif(os.environ.get('ECHO_KIT_DOCKER_TESTS') != '1', reason='Explicit real Docker evidence only')
 
 
+def test_two_workspaces_keep_independent_viewers(tmp_path, monkeypatch):
+    from contextlib import ExitStack
+    from playwright.sync_api import sync_playwright
+    from echo_kit import tray
+    workspaces = []
+    ports = set()
+    try:
+        with ExitStack() as contexts:
+            pages, urls, keys, endpoints = [], [], [], []
+            for index in range(2):
+                path = tmp_path / str(index)
+                init_workspace(path)
+                workspace = Workspace(path)
+                chosen = []
+                while len(chosen) < 2:
+                    port = free_port()
+                    if port not in ports:
+                        chosen.append(port)
+                        ports.add(port)
+                workspace.cfg['browser'] = {'port': chosen[0], 'viewer_port': chosen[1],
+                                            'auto_open': False, 'build_timeout': 600}
+                workspaces.append(workspace)
+                result = browser.manage(workspace, 'up')
+                urls.append(result['viewer_url'])
+                keys.append(tray.register(workspace))
+                endpoints.append(result['endpoint'])
+            playwright = contexts.enter_context(sync_playwright())
+            for index, endpoint in enumerate(endpoints):
+                connection = playwright.chromium.connect(endpoint)
+                contexts.callback(connection.close)
+                context = connection.new_context()
+                contexts.callback(context.close)
+                context.tracing.start(screenshots=True, snapshots=True)
+                trace = workspaces[index].root / 'trace/trace.zip'
+                trace.parent.mkdir()
+                contexts.callback(context.tracing.stop, path=str(trace))
+                page = context.new_page()
+                page.set_content('<input value="workspace-' + str(index) + '">')
+                pages.append(page)
+            opened = []
+            def open_link(url, **kwargs):
+                browser.viewer_check(url)
+                opened.append(url)
+                return True
+            monkeypatch.setattr(tray.webbrowser, 'open', open_link)
+            for key in keys:
+                tray.open_viewer(key)
+                tray.open_viewer(key)
+            assert opened == [urls[0], urls[0], urls[1], urls[1]]
+            assert [page.locator('input').input_value() for page in pages] == ['workspace-0', 'workspace-1']
+            for page in pages:
+                page.locator('input').fill('experiment continues')
+        assert all((ws.root / 'trace/trace.zip').is_file() for ws in workspaces)
+    finally:
+        for workspace in workspaces:
+            if (workspace.state / 'browser.json').exists():
+                browser.manage(workspace, 'down')
+
+
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows tray integration')
 def test_real_tray_reopens_same_session_and_exits_when_idle(ws, tmp_path, monkeypatch):
     from echo_kit import tray

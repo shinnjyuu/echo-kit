@@ -17,7 +17,7 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 
 - `configuration`: [shared/local/environment edits](../references/protocol.md#shared-and-local-configuration).
 - `cases`: [case discovery](../references/protocol.md#experiment-directory-and-layered-reading) and [adapter contract](../references/protocol.md#experiment-and-verification-subprocess).
-- `services`: [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
+- `services`: [shared instances and usage](../references/protocol.md#shared-service-instances), [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
 - `browser`: [Docker debugging and viewer](../references/protocol.md#visible-browser), [external exceptions](../references/protocol.md#current-guides-and-release-notes) and [tray](../references/protocol.md#windows-tray-viewer-080).
 - `auth`: [authentication](../references/protocol.md#authentication-subprocess) and [test identity preparation](../references/test-identities.md), only when authentication is needed.
 - `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents).
@@ -28,3 +28,5 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 Use the project's existing case/interpreter. State the hypothesis and required evidence; choose the smallest experiment that answers it. Lab does not automatically prepare services, authentication or browsers, and does not automatically invoke Workbench.
 
 After discovery and required topic reads, use `echo-kit --workspace PATH --actor "experiment purpose" --json lab run CASE --repeat 1`; increase repetitions only for a reason. `lab compare CASE --variants baseline candidate --repeat 3` compares explicit project variants. Each candidate/repetition uses independent records. Inspect the selected JSON and `runs show ID`; use `runs compare LEFT RIGHT` for checks and metrics. One run does not establish stability. Read cases before adding/changing adapters or interpreting their output.
+
+Before sharing a microservice across workspaces, read services: use an explicit compatible resource_id; keep machine-specific mappings local. Cases default to shared use; choose service_access="exclusive" for non-concurrent data changes. Browser viewers remain workspace-specific. References are not active usage, and old offline Kit sessions do not participate in the new registry.

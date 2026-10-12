@@ -33,6 +33,8 @@ def validate(ws, names, jobs):
         spec = specs[name]
         if not isinstance(spec, dict) or spec.get('mode', 'managed') not in ('managed', 'external'):
             raise KitError('Invalid service configuration: ' + name)
+        if 'resource_id' in spec and (not isinstance(spec['resource_id'], str) or not spec['resource_id'].strip()):
+            raise KitError('resource_id must be a nonempty string: ' + name)
         deps = spec.get('depends', [])
         if not isinstance(deps, list) or any(not isinstance(d, str) for d in deps):
             raise KitError('depends must be a list of service names: ' + name)
@@ -83,6 +85,8 @@ class Startup:
         self.cancel = threading.Event()
         self.started = time.monotonic()
         self.results = {}
+        from .service_registry import key
+        self.instance_locks = {key(self.ws, n): threading.Lock() for n in names}
         self.locks = {canonical_path(self.ws.project(s.get('project'))): threading.Lock()
                       for s in (self.ws.cfg['services'][n] for n in names)}
 
@@ -96,7 +100,9 @@ class Startup:
         try:
             spec = self.ws.cfg['services'][name]
             lock = self.locks[canonical_path(self.ws.project(spec.get('project')))]
-            result['result'] = self.manager._up(name, self.cancel, timings, lock)
+            from .service_registry import key
+            with self.instance_locks[key(self.ws, name)]:
+                result['result'] = self.manager._up(name, self.cancel, timings, lock)
         except (Exception, KeyboardInterrupt) as error:
             result['error'] = str(error) or 'Startup interrupted'
             result['logs'] = 'echo-kit services logs ' + name
@@ -155,17 +161,8 @@ class Startup:
                                   'timings': {'queue': time.monotonic() - self.started, 'build': 0., 'start': 0., 'ready': 0., 'total': time.monotonic() - self.started}}
         # Preserve the status mapping, including unselected services, without another
         # round of potentially slow readiness probes for every configured service.
-        state = read(self.manager.file, {})
-        from .processes import matches
-        snapshot = {}
-        operations = Journal().list()
-        for name, spec in self.ws.cfg.get('services', {}).items():
-            instance = state.get(name)
-            item = {'mode': spec.get('mode', 'managed'), 'owned': bool(instance and matches(instance['identity'])),
-                    'instance': instance, 'ready': None,
-                    'source_changed_since_start': self.manager._source_changed(spec, instance),
-                    'occupants': [op for op in operations if set(op['held']).intersection(
-                        service_resources(self.ws, [name], builds=False))]}
+        snapshot = self.manager.status(probe=False)
+        for name, item in snapshot.items():
             if name in self.results:
                 item['startup'] = self.results[name]
                 item['ready'] = self.results[name]['result'] in ('ready', 'reused')

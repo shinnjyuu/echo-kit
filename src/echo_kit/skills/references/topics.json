@@ -24,7 +24,8 @@
     "sections": [
       "Managed service lifetime",
       "Parallel service startup",
-      "Shared operations (local user)"
+      "Shared operations (local user)",
+      "Shared service instances"
     ],
     "references": []
   },

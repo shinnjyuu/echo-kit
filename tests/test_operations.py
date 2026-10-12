@@ -44,7 +44,7 @@ Path(os.environ['ECHO_RESULT']).write_text(json.dumps({'status':'passed','checks
     with (ws.root / 'echo-kit.toml').open('a') as file:
         file.write('\n[services.api]\nmode="external"\nresource_id=' + json.dumps(service_id)
                    + '\n[services.api.ready]\ncommand=["{python}","-c","pass"]'
-                   + '\n[cases.demo]\nservices=["api"]\ncommand=["{python}","adapter.py"]\ntimeout=20\n')
+                   + '\n[cases.demo]\nservice_access="exclusive"\nservices=["api"]\ncommand=["{python}","adapter.py"]\ntimeout=20\n')
     return Workspace(ws.root)
 
 

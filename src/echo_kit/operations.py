@@ -61,7 +61,7 @@ def service_names(ws, names):
     return result
 
 
-def service_resources(ws, names, builds=True):
+def service_resources(ws, names, builds=True, access='exclusive'):
     resources = {}
     for name in service_names(ws, names):
         spec = ws.cfg['services'][name]
@@ -75,7 +75,10 @@ def service_resources(ws, names, builds=True):
             keys.append('service:' + spec['resource_id'])
         if not keys:
             raise KitError('Service requires resource_id when no endpoint is declared: ' + name)
-        resources.update({key: 'exclusive' for key in keys})
+        if spec.get('mode', 'managed') != 'external':
+            from .service_registry import key
+            keys.append('instance:' + key(ws, name))
+        resources.update({key: access for key in keys})
         if builds and spec.get('prepare') and spec.get('mode', 'managed') != 'external':
             resources['build:' + canonical_path(ws.project(spec.get('project')))] = 'exclusive'
     return resources
@@ -169,6 +172,21 @@ class Journal:
                     if key.startswith('build:'):
                         del held[key]
 
+    def downgrade_services(self, oid, resources):
+        """Only downgrade already-held leases, in one journal transaction."""
+        with self.lock():
+            record = read(self.file(oid))
+            for key, mode in resources.items():
+                if key not in record['held'] or (record['held'][key] == 'shared' and mode == 'exclusive'):
+                    raise KitError('Invalid service lease transition')
+                record['held'][key] = mode
+            record['held'] = {k: v for k, v in record['held'].items() if not k.startswith('build:')}
+            save(self.file(oid), record)
+        for current, held in _held.get():
+            if current == oid:
+                held.clear()
+                held.update(record['held'])
+
     def event(self, oid, action, state, **details):
         with self.lock():
             record = read(self.file(oid))
@@ -178,7 +196,7 @@ class Journal:
     def release(self, oid, result='completed', retain=False):
         with self.lock():
             record = read(self.file(oid))
-            retain = retain or any(matches(child) for child in record.get('children', []))
+            retain = retain or record.get('requires_resolution', False) or any(matches(child) for child in record.get('children', []))
             record.update(state='needs_cleanup' if retain else 'finished', result=result)
             record['events'].append({'time': time.time(), 'action': record['action'], 'state': record['state']})
             if not retain:

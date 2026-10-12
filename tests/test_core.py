@@ -132,8 +132,7 @@ def test_service_reuse_external_and_pid_mismatch(ws):
         from echo_kit.core import read
         saved = read(service.file)
         service.file.unlink()
-        with pytest.raises(KitError, match='Port occupied'):
-            service.up(['web'])
+        assert service.up(['web'])['web']['instance']['identity'] == first['instance']['identity']
         spec['mode'] = 'external'
         assert service.up(['web'])['web']['ready']
         service.down(['web'])

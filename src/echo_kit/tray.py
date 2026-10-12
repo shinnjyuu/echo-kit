@@ -23,7 +23,7 @@ from .core import KitError, read, save, safe_name
 from .operations import data_root
 from .processes import fingerprint, matches
 
-PROTOCOL = 1
+PROTOCOL = 2
 POLL_SECONDS = 5
 IDLE_SECONDS = 30
 _scope = ContextVar('tray_start_scope', default=None)
@@ -113,6 +113,7 @@ def snapshot():
     index = read(root() / 'projects.json', {})
     rows, containers = [], None
     docker_failed = False
+    seen_browsers = set()
     for key, entry in index.items():
         row = {'key': key, 'name': entry['name'], 'environment': entry['environment'],
                'workspace': entry['workspace'], 'services': [], 'browser': None}
@@ -120,10 +121,13 @@ def snapshot():
             states = read(entry['services_file'], {})
             for name in entry['services']:
                 if name in states:
+                    if 'registry_id' in states[name]:
+                        continue
                     row['services'].append({'name': name, 'state': process_state(states[name]['identity'])})
         except (OSError, ValueError, TypeError, KeyError):
             row['services'].append({'name': '登记文件', 'state': 'unknown'})
-        if entry['browser_managed']:
+        if entry['browser_managed'] and entry['browser_file'] not in seen_browsers:
+            seen_browsers.add(entry['browser_file'])
             try:
                 state = read(entry['browser_file'], {})
                 if state:
@@ -146,6 +150,20 @@ def snapshot():
             except (OSError, ValueError, KeyError, TypeError):
                 row['browser'] = {'state': 'unknown', 'viewer_url': None}
         rows.append(row)
+    from .service_registry import Registry, process_state as shared_state
+    from .operations import Journal
+    shared = []
+    operations = Journal().list()
+    for record in Registry().all():
+        state = shared_state(record['identity'])
+        shared.append({'name': record.get('resource_id') or record['origin']['name'],
+                       'instance_id': record['instance_id'], 'state': state if state in ('running', 'stopped') else 'unknown',
+                       'references': record['references'],
+                       'users': [{'workspace': op['workspace'], 'environment': op['environment'], 'operation_id': op['id']}
+                                 for op in operations if op['run_id'] and set(op['held']).intersection(record['resource_keys'])]})
+    if shared:
+        rows.append({'key': 'shared-services', 'kind': 'shared_services', 'name': '共享微服务',
+                     'environment': '', 'workspace': '', 'services': shared, 'browser': None})
     return rows
 
 
@@ -343,6 +361,20 @@ def serve(token):
             items = []
             for row in current:
                 if not has_resources([row], include_unknown=True):
+                    continue
+                if row.get('kind') == 'shared_services':
+                    services = []
+                    for service in row['services']:
+                        if service['state'] == 'stopped':
+                            continue
+                        details = [pystray.MenuItem('引用：' + ref['workspace'] + ' [' + ref['environment'] + ']', None, enabled=False)
+                                   for ref in service['references']]
+                        details += [pystray.MenuItem('使用中：' + user['workspace'] + ' [' + user['environment'] + ']', None, enabled=False)
+                                    for user in service['users']]
+                        if not service['users']:
+                            details.append(pystray.MenuItem('当前无 Kit 实验占用', None, enabled=False))
+                        services.append(pystray.MenuItem(service['name'] + ': ' + text[service['state']], pystray.Menu(*details)))
+                    items.append(pystray.MenuItem('共享微服务', pystray.Menu(*services)))
                     continue
                 label = row['name'] + ' [' + row['environment'] + ']'
                 if sum(r['name'] == row['name'] and r['environment'] == row['environment'] for r in current) > 1:

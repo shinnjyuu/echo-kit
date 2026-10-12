@@ -66,7 +66,7 @@ CLI code 0: executed scope passed; 1: check failure; 2: blocked/unverified/confi
 
 ## Shared operations (local user)
 
-`operations list`, `operations show ID`, and `operations resolve ID --note "confirmed cleanup"` work without a workspace. Global `--actor` labels the task. A conflict returns code 2, `reason="resource_busy"`, and `occupants` with operation ID, actor, action, duration, workspace and query command; no business action has run. There is no queue or automatic retry. Service status includes current occupants.
+`operations list`, `operations show ID`, and `operations resolve ID --note "confirmed cleanup"` work without a workspace. Global `--actor` labels the task. A conflict returns code 2, `reason="resource_busy"`, and `occupants` with operation ID, actor, action, duration, workspace and query command; no business action has run. Resource conflicts are not queued or retried; same-identity startup locks have a bounded wait before reserving resources. Service status includes current occupants.
 
 Journal location: Windows `%LOCALAPPDATA%/echo-kit/operations`, Linux `$XDG_DATA_HOME/echo-kit/operations` (default `~/.local/share`), macOS `~/Library/Application Support/echo-kit/operations`. `ECHO_KIT_DATA_HOME` overrides the base for tests only; all cooperating invocations must use the same location. History persists after release. Different OS users/machines and tools outside Echo are not coordinated. Records and evidence can contain local paths and task labels; review before sharing.
 
@@ -74,9 +74,43 @@ Services use the actual endpoint host/port (localhost, IPv4/IPv6 loopback normal
 
 A prepare command requires a Git project; source fingerprints include tracked and untracked nonignored file contents. Ignore build outputs before using prepare. Source changes during a build prevent launching its output. A running owned instance retains its original source/artifact record until explicitly restarted. Shared build-directory reservations last only through service preparation. Service reservations last through verification/cleanup. Direct Lab cases do not prepare services; declaring services still reserves those resources when the experiment uses them.
 
-Auth check/refresh/logout uses a separate account/target reservation. Browser up holds a short-lived startup reservation and shared endpoint use; concurrent contexts share the endpoint, but down needs exclusive access. Runs in different environments still conflict if they address the same service. Configured external instances remain externally owned.
+Auth check/refresh/logout uses a separate account/target reservation. Browser up holds a short-lived startup reservation and shared endpoint use; concurrent contexts share the endpoint, but down needs exclusive access. Shared service users may overlap across environments; exclusive users conflict. Configured external instances remain externally owned.
 
 Crashed owners leave resources protected, with `needs_cleanup` reported from process identity, not an expiry timer. Adapter/build children are recorded, so a live child also prevents manual release. `runs cleanup` checks the original operation and never overwrites the run's original verdict. If no cleanup adapter exists, the user must confirm external terminal state before `operations resolve`; the note is preserved, historical run/active evidence is not deleted. Manual resolution does not stop any process. Legacy unresolved runs must be cleaned first. Stop old-version executions before upgrading; they do not recognize these reservations.
+
+## Shared service instances
+
+Since 0.10.0, managed services with the same explicit `services.NAME.resource_id` share one instance under the same OS user and Kit data directory. Aliases may differ; names or matching ports alone never merge instances. Without an ID, identity remains workspace/environment/name-local. External services stay connection-only.
+
+Kit keeps the process identity, random instance generation, origin, references, dependency identities, log/build evidence locations and keyed compatibility digest in the user data directory. Workspace state contains references. A reference is not an active user and does not keep a service occupied forever. Status checks live process identity and explicitly probes readiness; the tray checks identity only. Neither registry presence nor process liveness proves business readiness.
+
+`services up` automatically registers a workspace reference and reuses a healthy compatible instance. Compatibility compares resolved project directory, command, prepare inputs, declared artifacts, endpoint resources, explicit environment values and dependency identities. Alias/workspace display names and readiness timeouts need not match. Configured secrets and process command arguments are compared with a machine-private keyed digest, not stored as plaintext in the unified record. Inherited undeclared environment values cannot be fully compared: declare behavior-changing inputs explicitly. Never put secrets in resource IDs, paths or task labels.
+
+Concurrent starts for one identity use bounded startup locks and recheck registration after acquiring them. Incompatible configuration, an unhealthy registered process, uncertain identity and occupied unknown endpoints produce diagnostics; Kit does not replace, restart or adopt them automatically. Dependency order, parallel scheduling and build checks still apply.
+
+Cases declare `services=[...]` and may set `service_access="shared"` (default) or `"exclusive"`. Verify holds startup protection through preparation and atomically downgrades it to shared use before executing the adapter. Healthy instances can be reused while another shared case runs. Exclusive cases reserve declared services and their dependencies exclusively; use this when project data cannot safely be modified concurrently. Shared access does not isolate test data or protect clients that bypass Kit. Lab reserves declared resources but still does not prepare them.
+
+Normal completion releases usage, leaving services running. Unfinished cleanup or an unconfirmed child retains protection. New run records include the actual instance generation and access mode. `runs cleanup` checks original instance/resource identity and signed launch/cleanup configuration; changed targets require inspection instead of executing cleanup against replacement instances. Historical records remain readable.
+
+Explicit `services down NAME` / `services restart NAME` can manage a referenced instance only after acquiring exclusive access. Active users and pending cleanup block them. With no names, down/restart select only instances originally started in this workspace/environment, not all borrowed references. Running registered dependents in other workspaces also block stopping a dependency. `services logs NAME` uses the confirmed unified instance's log. Stopping it is visible to every referencing workspace on the next query.
+
+For existing local registrations, first run `services up NAME` in the original workspace after finishing old operations. Kit verifies ownership, backs up the old registration under ignored `.echo-kit/migrations/`, and adopts without restarting. Read-only status does not migrate and reports `migration_required`. Unconfirmed identity or multiple live registrations for one ID blocks adoption. Kit does not scan disks to discover unrelated registrations, choose a winner or kill duplicates. All cooperating sessions must use 0.10.0 or newer; older offline commands cannot coordinate the new registry.
+
+Team-owned service IDs and launch conventions may live in shared configuration. Machine-specific cross-workspace mappings, source paths and ports belong in `.echo-kit/local.toml`, including the matching environment table when necessary. Both workspaces must resolve to compatible launch inputs; pointing an identical ID at different checkout directories is a conflict.
+
+```toml
+# .echo-kit/local.toml in each workspace, using its local service alias
+[services.api]
+resource_id = "my-local-api"
+# Keep the existing shared command; override project paths/ports as needed.
+
+[browser]
+# Only the second workspace needs different local browser ports.
+port = 19325
+viewer_port = 19326
+```
+
+The Windows tray groups unified instances under Shared microservices, with references and registered users. Browsers remain separate by workspace, not environment: each workspace has its own container/registered viewer URL and local ports. Choosing a project viewer reopens that same container without restarting the experiment. Polling updates are not instant pushes. After upgrading an old tray, run `tray stop`, then `tray start` to replace only the UI; services and browser contexts remain intact.
 
 ## Latest-version execution
 

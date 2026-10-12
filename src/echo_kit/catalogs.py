@@ -77,7 +77,8 @@ def case(ws, name):
         prefix += ['--environment', ws.environment]
     result = {'status': 'passed', 'case': item,
               'entrypoints': [[*prefix, module, 'run', name] for module in ('lab', 'verify')],
-              'requirements': {'services': services, 'auth': auth, 'browser': browser, 'verified': False},
+              'requirements': {'services': services, 'service_access': spec.get('service_access', 'shared'),
+                               'auth': auth, 'browser': browser, 'verified': False},
               'note': 'Lab does not prepare dependencies; Verify prepares declared capabilities.',
               'document': None}
     value = spec.get('docs')
