@@ -178,3 +178,9 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 0.10.0 起，相同显式 `services.NAME.resource_id` 可以跨工作区复用同一个受管微服务；启动配置必须相容。未指定 ID 时仍独立。实验默认共享使用，需要避免并发修改数据时设置 `service_access = "exclusive"`。服务使用中不能停止或重启。
 
 浏览器仍按工作区独立，端口避让写本机 `.echo-kit/local.toml`。托盘分别显示共享微服务和各项目观看入口。通过 `echo-kit guide echo-workbench --topic services` 读取接入、旧登记迁移和停止范围说明。
+
+## 找到模块文档，写对规则位置
+
+`echo-kit docs map` 发现整个工作区的 Markdown，不局限于 echo/。修改模块前用 `docs context 模块目录` 读取沿途 AGENTS.md，再用 `docs read 文档路径` 按需读取说明。根目录保留全项目约束，子目录维护局部约束，详细需求独立成文并链接。
+
+`docs check --rules` 检查规则文件及直接引用，不自动搬迁文档，也不判断业务语义是否冲突。个人材料仍通过私有入口显式读取。详细边界见 `guide echo-init --topic documents`。

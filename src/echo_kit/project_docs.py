@@ -377,6 +377,8 @@ def _setup(ws):
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         text = ('# Team documentation\n\nRead `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench` for current Kit rules.\nRead again when the actual execution version changes; use `echo-kit updates notes` for adaptation guidance.\nKeep project startup, cases, authentication workflows (no secrets), team constraints and environment ownership here, not a copied Kit manual.\nPersonal machine facts belong in the ignored private entry.\n\nDiscover experiments with `echo-kit cases list` and read a selected explanation with `echo-kit cases show ID`.\nKeep this entry for orientation and mandatory rules; put each experiment explanation in its own existing document, and keep source/logs/traces as on-demand evidence.\nRecord reusable workflows, architecture and verification conclusions here.\n'
+                'Discover workspace-wide documents with `echo-kit docs map`; read directory rules with `echo-kit docs context PATH`, then selected details with `echo-kit docs read PATH`.\n'
+                'Keep global constraints in root AGENTS.md, local constraints in module AGENTS.md, and detailed requirements in linked module documents. Check rule edits with `echo-kit docs check --rules`.\n'
                 'Use relative file links. Track shared documents in Git. Do not depend on private evidence.\n'
                 'Discover optional local notes with `echo-kit docs list`; read explicitly with `echo-kit docs show private`.\n'
                 if scope == 'shared' else

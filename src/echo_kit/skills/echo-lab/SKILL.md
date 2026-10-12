@@ -20,7 +20,7 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 - `services`: [shared instances and usage](../references/protocol.md#shared-service-instances), [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
 - `browser`: [Docker debugging and viewer](../references/protocol.md#visible-browser), [external exceptions](../references/protocol.md#current-guides-and-release-notes) and [tray](../references/protocol.md#windows-tray-viewer-080).
 - `auth`: [authentication](../references/protocol.md#authentication-subprocess) and [test identity preparation](../references/test-identities.md), only when authentication is needed.
-- `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents).
+- `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents) and [directory rules](../references/protocol.md#directory-documentation-and-rules).
 - `updates`: [upgrade adaptation](../references/protocol.md#latest-version-execution).
 
 ## Workflow
@@ -30,3 +30,5 @@ Use the project's existing case/interpreter. State the hypothesis and required e
 After discovery and required topic reads, use `echo-kit --workspace PATH --actor "experiment purpose" --json lab run CASE --repeat 1`; increase repetitions only for a reason. `lab compare CASE --variants baseline candidate --repeat 3` compares explicit project variants. Each candidate/repetition uses independent records. Inspect the selected JSON and `runs show ID`; use `runs compare LEFT RIGHT` for checks and metrics. One run does not establish stability. Read cases before adding/changing adapters or interpreting their output.
 
 Before sharing a microservice across workspaces, read services: use an explicit compatible resource_id; keep machine-specific mappings local. Cases default to shared use; choose service_access="exclusive" for non-concurrent data changes. Browser viewers remain workspace-specific. References are not active usage, and old offline Kit sessions do not participate in the new registry.
+
+For module work, read the documents topic and `docs context PATH`; discover related material with `docs map` and explicitly `docs read PATH`. Before writing classify team/personal, project/module and constraint/detailed requirement. Keep global rules at root, local rules with their module, and link detailed requirements. These commands cover the whole workspace, not just echo/. Resolve semantic conflicts explicitly; partial reads are not completed reading. Run `docs check --rules` after rule edits and ordinary `docs check` when registered document entries change.

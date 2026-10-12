@@ -94,5 +94,13 @@
     "applies_when": "Multiple workspaces use one managed microservice, or existing exclusive-by-default cases modify shared data.",
     "steps": "Read guide echo-workbench --topic services. Set exclusive access for cases that cannot safely share data. Finish old operations before adopting legacy registrations via services up in the original workspace. Use named down/restart for borrowed services; unnamed commands affect only instances started here. Replace an older tray with tray stop/start. Use the new version in every cooperating session.",
     "no_change_when": "No-ID services retain workspace/environment-local identity. External instances, business configurations, historical evidence and exported Skills are not automatically migrated. No release or business operations are implied."
+  },
+  {
+    "version": "0.11.0",
+    "changes": "Workspace-wide Markdown map, directory AGENTS.md context, bounded explicit document reads and structural rule checks.",
+    "configuration": "No new configuration or document registry. Existing shared/private ownership and workspace boundaries still apply.",
+    "applies_when": "Finding module documentation, choosing where rules belong or inspecting nested AGENTS.md outside echo/.",
+    "steps": "Read the documents guide topic. Use docs map/context/read before editing; put global constraints at root and local constraints in the relevant directory, linking detailed requirements. Run docs check --rules; retain ordinary docs check for registered shared/private entries. Treat partial/unsupported discovery as unverified, not a complete client instruction view.",
+    "no_change_when": "Existing documents, exported Skills and business repositories are not moved or overwritten. Semantic conflict resolution remains the agent and user responsibility. Runtime commands are not blocked by document checks."
   }
 ]

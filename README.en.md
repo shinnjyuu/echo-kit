@@ -164,3 +164,9 @@ Use `echo-kit cases list` to browse categories, `cases list --query login` to se
 Since 0.10.0, identical explicit `services.NAME.resource_id` values reuse one compatible managed instance under the same local user. Services without an ID stay independent. Cases share service access by default; set `service_access = "exclusive"` for data changes that must not overlap. Active usage blocks stop/restart.
 
 Browsers remain workspace-local. Put local port overrides in `.echo-kit/local.toml`; the tray separates shared services from project viewers. Read `echo-kit guide echo-workbench --topic services` for adoption and stop scope.
+
+## Find module documents and scope rules
+
+`echo-kit docs map` discovers Markdown across the entire workspace, not just echo/. Before editing a module, use `docs context MODULE_DIR` for its AGENTS.md chain and `docs read PATH` for selected explanations. Keep project-wide constraints at root, local constraints with modules, and detailed requirements in linked documents.
+
+`docs check --rules` checks rule files and direct references. It does not move documents or resolve semantic conflicts. Private material still requires explicit private-entry reads. See `guide echo-init --topic documents` for boundaries.

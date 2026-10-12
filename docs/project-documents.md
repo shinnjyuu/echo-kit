@@ -74,3 +74,26 @@ private = ".echo-kit/private/README.md"
 开始工作时先发现并读取共享入口，再按任务需要读取个人入口。写文档前判断受众；个人说明可以补充本机事实，不能默默覆盖团队约定或扩大操作权限。发生冲突时说明冲突并遵循用户当前指令。
 
 文档改动后运行 `docs check`。共享文档保留团队可复现的方法与结论，个人文档保留本机位置和原始记录。提交、推送和私有内容转为共享内容仍受当前任务授权约束。
+
+## 工作区文档地图与目录规则（0.11.0）
+
+这些入口发现整个 `--workspace`，不限于 `echo/`，不要求先运行 `docs setup`，但工作区必须已有 `echo-kit.toml`：
+
+```sh
+echo-kit docs map
+echo-kit docs map --path backend/orders
+echo-kit docs map --query 退款 --limit 20 --offset 0
+echo-kit docs context backend/orders
+echo-kit docs read backend/orders/docs/refund.md --start-line 1 --limit 200
+echo-kit docs check --rules
+```
+
+地图只列 Git 已跟踪和未被忽略的未跟踪 Markdown 路径，不读取正文或生成摘要。默认逐层显示目录与文件，搜索按路径匹配，分页默认 20 项。私有材料、忽略项、目录符号链接／junction、子模块和嵌套仓库不遍历；无 Git 返回未验证，不扫描磁盘。每次最多检查 500 个候选，超限时总数仅代表已检查范围，需要缩小目录或显式读取已知文件。
+
+`context` 按根目录到目标目录读取沿途准确命名的 `AGENTS.md`，不读兄弟目录。目标可为现有文件或目录；准备新建文件时传所在目录。README 和规则里的 Markdown 引用只提供后续入口，不展开正文。`AGENTS.override.md` 和大小写变体作为未验证候选列出，不模拟具体客户端的优先级。Kit 的目录链不代表客户端实际加载的全部指令，也不包含工作区外祖先或用户全局规则。
+
+`read` 显式读取共享 Markdown，每次默认 200 行、最多 1,000 行。单文件上限 2 MiB；read 和 context 每次正文合计最多 64 KiB。未读完时返回未验证、未读行号及继续读取命令；单行超过预算需明确用本地编辑器查看。私有文件仍通过 `docs show private` 显式读取。
+
+`check --rules` 检查发现的规则文件及直接本地引用，不递归读被引用文档、不执行命令、不访问网页、不判断业务语义冲突。断链和共享路径违规失败；Git 不可用、未跟踪规则、非标准规则文件名、边界不明或超限返回未验证。没有局部约束时不要求创建子目录 AGENTS.md。原来的 `docs check` 继续检查已登记共享／私有入口，两者均不自动阻断业务运行。
+
+写入前分别判断受众、目录范围和内容类型：根 AGENTS.md 保留全项目规则，子目录 AGENTS.md 维护局部工作约束，详细需求／原型／业务规律独立成文并链接；跨模块知识只保留一份正文。发现放置不当时先说明建议，再在当前授权内整理与修复引用，CLI 不自动搬迁或重写。

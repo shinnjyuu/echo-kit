@@ -27,7 +27,7 @@ def parser():
                             'operations': ['list', 'show', 'resolve'],
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
-                            'docs': ['setup', 'list', 'show', 'check'],
+                            'docs': ['setup', 'list', 'show', 'check', 'map', 'context', 'read'],
                             'tray': ['start', 'status', 'stop'], 'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
         group = top.add_parser(module, **({'help': 'Discover and check shared/private project documents'}
                                          if module == 'docs' else {'help': 'Windows viewing tray; never stops business resources'}
@@ -37,7 +37,10 @@ def parser():
             doc_help = {'setup': 'Create missing entries and ignore rules without overwriting documents',
                         'list': 'List configured entries and Git status without document bodies',
                         'show': 'Read one explicit project document entry',
-                        'check': 'Check paths and Git ownership without changing files'}
+                        'check': 'Check paths and Git ownership without changing files',
+                        'map': 'Discover Markdown across the workspace without reading bodies',
+                        'context': 'Read the directory AGENTS.md chain; not a client instruction resolver',
+                        'read': 'Read an explicit shared Markdown file in bounded line ranges'}
             cmd = sub.add_parser(action, **({'help': doc_help[action]} if module == 'docs' else
                 {'description': {'start': 'Register this workspace and show the Windows tray if owned resources are running. Honors CI, desktop availability and ECHO_KIT_TRAY=0.',
                                  'status': 'Read tray and resource process state without a workspace; does not run application health commands.',
@@ -60,6 +63,18 @@ def parser():
                 cmd.add_argument('name')
             elif module == 'docs' and action == 'show':
                 cmd.add_argument('scope', choices=['shared', 'private'])
+            elif module == 'docs' and action == 'map':
+                cmd.add_argument('--path', default='.')
+                cmd.add_argument('--query')
+                cmd.add_argument('--limit', type=int, default=20)
+                cmd.add_argument('--offset', type=int, default=0)
+            elif module == 'docs' and action in ('context', 'read'):
+                cmd.add_argument('path')
+                if action == 'read':
+                    cmd.add_argument('--start-line', type=int, default=1)
+                    cmd.add_argument('--limit', type=int, default=200, help='Lines per read (1..1000)')
+            elif module == 'docs' and action == 'check':
+                cmd.add_argument('--rules', action='store_true', help='Check workspace rule files and direct links independently of docs setup')
             elif module == 'updates':
                 if action == 'notes':
                     cmd.add_argument('--since', help='Read bundled releases newer than this version')
@@ -145,6 +160,15 @@ def dispatch(args):
     ws.tool_update = getattr(args, "_update", None)
     if args.module == 'docs':
         from . import project_docs
+        from . import document_map
+        if args.action == 'map':
+            return document_map.document_map(ws, args.path, args.query, args.limit, args.offset)
+        if args.action == 'context':
+            return document_map.context(ws, args.path)
+        if args.action == 'read':
+            return document_map.read_document(ws, args.path, args.start_line, args.limit)
+        if args.action == 'check' and args.rules:
+            return document_map.check_rules(ws)
         if args.action == 'show':
             return project_docs.show(ws, args.scope)
         return getattr(project_docs, 'catalog' if args.action == 'list' else args.action)(ws)

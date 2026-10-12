@@ -54,7 +54,8 @@
     "id": "documents",
     "description": "Before changing project document structure or sharing private conclusions",
     "sections": [
-      "Shared and private project documents"
+      "Shared and private project documents",
+      "Directory documentation and rules"
     ],
     "references": []
   },
