@@ -272,17 +272,27 @@ def main(argv=None):
                 or route.module == 'task' or (route.module == 'updates' and route.action == 'apply')):
             raise KitError('Project version tasks and policies were removed. Use echo-kit directly; '
                            'run updates setup once to migrate an old project entry. Preserve historical records.')
-        diagnostic = (any(x in ('--help', '-h', '--version') for x in raw)
+        diagnostic = (('--version' in raw and route.module is None)
+                      or (route.module is None and any(x in ('--help', '-h') for x in raw))
                       or (route.module, route.action) in (('runtime', 'info'), ('updates', 'check')))
         discovery = None
         if diagnostic:
             os.environ.pop(updates.FORWARDED, None)
             os.environ.pop('ECHO_KIT_SOURCE_VERSION', None)
+            os.environ.pop('ECHO_KIT_UPDATE_ROUTE', None)
         if not diagnostic:
             child_code, discovery = updates.startup(raw, route.offline)
             if child_code is not None:
                 return child_code
-        args = parser().parse_args(raw)
+        try:
+            args = parser().parse_args(raw)
+        except SystemExit as error:
+            if error.code and discovery and discovery.get('fallback_reason'):
+                print(f"Echo Kit: parsing with {__version__}; update routing incomplete "
+                      f"({discovery['fallback_reason']}). A newer runtime may support this command. "
+                      "Upgrade the entry with: uv tool install --upgrade --index-url "
+                      "https://pypi.org/simple shinnjyuu-echo-kit", file=sys.stderr)
+            raise
         args._update = discovery
         result = dispatch(args)
         code = exit_code(result)

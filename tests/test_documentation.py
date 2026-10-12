@@ -97,7 +97,7 @@ def test_guide_same_package_offline(tmp_path, monkeypatch, capsys, name):
 
 
 def test_notes_ranges_and_export(tmp_path, capsys):
-    assert [e['version'] for e in documentation.notes('0.5.0')['releases']] == ['0.6.0', '0.7.0', '0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.8.4', '0.9.0', '0.10.0', '0.11.0']
+    assert [e['version'] for e in documentation.notes('0.5.0')['releases']] == ['0.6.0', '0.7.0', '0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.8.4', '0.9.0', '0.10.0', '0.11.0', '0.11.1']
     assert documentation.notes('0.2.0')['warning']
     assert documentation.notes('9.0.0')['warning']
     assert documentation.notes(__version__)['releases'] == []
@@ -106,6 +106,6 @@ def test_notes_ranges_and_export(tmp_path, capsys):
     documentation.export(tmp_path)
     assert json.loads((tmp_path / 'references/releases.json').read_text())
     assert main(['--offline', '--json', 'updates', 'notes', '--since', '0.5.0']) == 0
-    assert len(json.loads(capsys.readouterr().out)['releases']) == 10
+    assert len(json.loads(capsys.readouterr().out)['releases']) == 11
     assert main(['--offline', 'guide', 'echo-init']) == 0
     assert __version__ in capsys.readouterr().out

@@ -16,7 +16,7 @@ echo-kit --workspace WORKSPACE --json docs list
 
 `WORKSPACE` 和 `CASE` 替换为实际值。业务配置、适配器、输入输出协议由 Kit 维护兼容；确需变更时提供具体迁移提示，不要求所有项目先管理版本生命周期。
 
-以下诊断命令只查看当前入口，不自动转交新版：
+以下诊断命令只查看当前入口，不自动转交新版；`docs --help` 等子命令帮助走普通更新路由：
 
 ```sh
 echo-kit --version
@@ -30,7 +30,7 @@ echo-kit --json updates check --refresh
 
 ## 失败和离线
 
-查询超时、网络失败、uv 缺失或新版安装/启动确认失败时，提示原因并继续使用本次入口可运行的版本。更新提示写入 stderr，不污染 stdout 的 JSON。没有可用工具入口时按安装指引准备环境，不能凭缓存信息声称工具已安装。
+并发检查最多等待 3 秒并重读结果，同一轮已完成的检查会被复用；没有长期成功缓存。查询超时、网络失败或新版准备失败时，优先离线验证并使用已知的较新版本，全部不可用才回退安装入口。最近成功准备版本按 Python 解释器记录在用户缓存，原子更新，不保存任意执行路径、不扫描 uv 缓存。更新提示写入 stderr，不污染 stdout 的 JSON。没有可用工具入口时按安装指引准备环境，不能凭缓存信息声称工具已安装。
 
 ```sh
 echo-kit --offline --json skills show echo-init
@@ -58,3 +58,7 @@ echo-kit --workspace WORKSPACE --offline --json lab run CASE
 Skills 和协议从**实际执行的安装包**读取，不从 GitHub main 拉取正文。普通文档命令同样检查最新版；需要检查当前安装内容时显式加 `--offline`。导出的项目 Skill 是独立副本，使用 `skills status` 检查，再导出到空目录比较合并，保留团队修改。
 
 特殊排障可以显式安装某个版本，并使用 `--offline` 执行，避免排障调用又自动转交新版；不再提供项目级固定版本功能。复验指定发行包时同样使用 `--offline`。
+
+## 0.11.1 旧入口修复
+
+旧入口可能因更新锁忙碌而提前退回旧版。仅发布修复包不能改掉旧入口的路由代码，需要一次执行 `uv tool install --upgrade --index-url https://pypi.org/simple shinnjyuu-echo-kit`，再检查 PATH 对应的 `echo-kit --version`。普通命令的运行记录保留实际版本及回退原因；显式离线仍使用当前包。解析失败且更新未完成时会附加升级提示，业务执行开始后绝不换版本重跑。

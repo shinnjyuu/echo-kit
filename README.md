@@ -184,3 +184,5 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 `echo-kit docs map` 发现整个工作区的 Markdown，不局限于 echo/。修改模块前用 `docs context 模块目录` 读取沿途 AGENTS.md，再用 `docs read 文档路径` 按需读取说明。根目录保留全项目约束，子目录维护局部约束，详细需求独立成文并链接。
 
 `docs check --rules` 检查规则文件及直接引用，不自动搬迁文档，也不判断业务语义是否冲突。个人材料仍通过私有入口显式读取。详细边界见 `guide echo-init --topic documents`。
+
+自动更新并发修复（0.11.1）：检查锁忙碌时短暂等待并复用结果，网络失败时优先使用已验证的较新缓存版本。子命令帮助跟随实际路由；显式 `--offline` 保持当前包。旧安装入口需升级一次才能获得修复，见[更新说明](docs/updates.md#0111-旧入口修复)。

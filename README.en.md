@@ -170,3 +170,5 @@ Browsers remain workspace-local. Put local port overrides in `.echo-kit/local.to
 `echo-kit docs map` discovers Markdown across the entire workspace, not just echo/. Before editing a module, use `docs context MODULE_DIR` for its AGENTS.md chain and `docs read PATH` for selected explanations. Keep project-wide constraints at root, local constraints with modules, and detailed requirements in linked documents.
 
 `docs check --rules` checks rule files and direct references. It does not move documents or resolve semantic conflicts. Private material still requires explicit private-entry reads. See `guide echo-init --topic documents` for boundaries.
+
+Update routing fix (0.11.1): concurrent checks wait briefly and reuse results; network failures prefer verified cached newer runtimes. Subcommand help follows routing; explicit `--offline` stays on the calling package. Upgrade an older installed entry once to acquire the fix; see [updates](docs/updates.md).

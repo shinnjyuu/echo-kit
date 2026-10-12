@@ -112,7 +112,7 @@ def test_new_command_routes_before_parser_and_never_retries_business_failure(onl
 
 def test_preparation_failure_falls_back_before_business(online, monkeypatch, capsys):
     monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
-    def fail(*a):
+    def fail(*a, **kw):
         raise KitError('unavailable')
     monkeypatch.setattr(updates, 'probe', fail)
     assert main(['--json', 'skills', 'list']) == 0
@@ -192,3 +192,177 @@ def test_parent_passes_source_once(online, monkeypatch):
     monkeypatch.setattr(updates.subprocess, 'call', execute)
     assert updates.startup(['guide', 'echo-init'])[0] == 7
     assert calls == [['future', 'guide', 'echo-init']]
+
+
+def test_busy_cache_routes_offline(online, monkeypatch):
+    from filelock import FileLock
+    root = data_root() / 'updates'
+    save(root / 'pypi.json', {'releases': {NEXT_VERSION: ['>=3.11']}})
+    monkeypatch.setattr(updates, 'CHECK_WAIT_SECONDS', 0.05)
+    probes, children = [], []
+    monkeypatch.setattr(updates, 'probe', lambda v, **kw: probes.append((v, kw)))
+    monkeypatch.setattr(updates, 'command_prefix', lambda *a, **kw: ['prepared'])
+    monkeypatch.setattr(updates.subprocess, 'call', lambda cmd, **kw: children.append(cmd) or 7)
+    with FileLock(str(root / 'check.lock')):
+        code, info = updates.startup(['docs', 'map'])
+    assert code == 7 and info['source'] == 'busy'
+    assert probes == [(NEXT_VERSION, {'no_network': True})]
+    assert children == [['prepared', 'docs', 'map']]
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_waiter_reloads_completed_check(online, monkeypatch, failed):
+    import threading
+    from filelock import FileLock
+    root = data_root() / 'updates'
+    root.mkdir(parents=True)
+    entered, release = threading.Event(), threading.Event()
+    def fetch():
+        entered.set()
+        assert release.wait(5)
+        if failed:
+            raise OSError('offline')
+        return {NEXT_VERSION: ['>=3.11']}
+    monkeypatch.setattr(updates, 'fetch_releases', fetch)
+    results = []
+    first = threading.Thread(target=lambda: results.append(updates.check()))
+    first.start()
+    assert entered.wait(5)
+    # Signal only when the second caller really attempts the held file lock.
+    attempting = threading.Event()
+    class ObservedLock(FileLock):
+        def acquire(self, *args, **kwargs):
+            attempting.set()
+            return super().acquire(*args, **kwargs)
+    monkeypatch.setattr(updates, 'FileLock', ObservedLock)
+    second = threading.Thread(target=lambda: results.append(updates.check()))
+    second.start()
+    assert attempting.wait(5)
+    release.set()
+    first.join(5); second.join(5)
+    assert not first.is_alive() and not second.is_alive()
+    assert len(results) == 2
+    assert any(r['source'] == 'coalesced' for r in results)
+    assert all(r['stale'] == failed for r in results)
+    if not failed:
+        assert all(r['latest_version'] == NEXT_VERSION for r in results)
+
+
+def test_prepared_runtime_survives_missing_metadata(online, monkeypatch):
+    updates.remember_prepared(NEXT_VERSION)
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: (_ for _ in ()).throw(OSError()))
+    probes = []
+    monkeypatch.setattr(updates, 'probe', lambda v, **kw: probes.append((v, kw)))
+    monkeypatch.setattr(updates, 'command_prefix', lambda *a, **kw: ['cached'])
+    monkeypatch.setattr(updates.subprocess, 'call', lambda *a, **kw: 0)
+    assert updates.startup(['skills', 'list'])[0] == 0
+    assert probes == [(NEXT_VERSION, {'no_network': True})]
+    probes.clear()
+    assert updates.startup(['skills', 'list'], no_network=True)[0] is None
+    assert probes == []
+
+
+def test_prepare_failure_uses_previous_without_business_retry(online, monkeypatch):
+    newest = '99.0.0'
+    updates.remember_prepared(NEXT_VERSION)
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {newest: ['>=3.11']})
+    probes, calls = [], []
+    def probe(v, **kw):
+        probes.append((v, kw))
+        if v == newest:
+            raise KitError('installation failed')
+    monkeypatch.setattr(updates, 'probe', probe)
+    monkeypatch.setattr(updates, 'command_prefix', lambda *a, **kw: ['cached'])
+    monkeypatch.setattr(updates.subprocess, 'call', lambda cmd, **kw: calls.append(cmd) or 9)
+    code, info = updates.startup(['lab', 'run', 'example'])
+    assert code == 9 and len(calls) == 1
+    assert probes == [(newest, {}), (newest, {'no_network': True}), (NEXT_VERSION, {'no_network': True})]
+    assert info['running_version'] == NEXT_VERSION
+
+
+def test_subcommand_help_routes(online, monkeypatch):
+    seen = []
+    monkeypatch.setattr(updates, 'startup', lambda raw, offline: (seen.append(raw) or 0, {}))
+    assert main(['docs', 'map', '--help']) == 0
+    assert seen == [['docs', 'map', '--help']]
+
+
+def test_failed_update_parser_hint(online, monkeypatch, capsys):
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: (_ for _ in ()).throw(OSError()))
+    with pytest.raises(SystemExit) as error:
+        main(['unknown-future-command'])
+    assert error.value.code == 2
+    output = capsys.readouterr()
+    assert 'invalid choice' in output.err and 'update routing incomplete' in output.err
+    assert 'uv tool install' in output.err
+
+
+def test_prepared_cache_validation_and_monotonicity(monkeypatch):
+    save(updates.prepared_path(), {'version': 'evil/path'})
+    assert updates.prepared_version() is None
+    updates.remember_prepared(NEXT_VERSION)
+    updates.remember_prepared(__version__)
+    assert updates.prepared_version() == NEXT_VERSION
+    old = updates.prepared_path()
+    monkeypatch.setattr(updates.sys, 'executable', 'another-python')
+    assert updates.prepared_path() != old
+
+
+def test_failed_refresh_can_use_same_cached_target(online, monkeypatch):
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
+    def probe(version, no_network=False):
+        if not no_network:
+            raise KitError('index unavailable')
+    monkeypatch.setattr(updates, 'probe', probe)
+    monkeypatch.setattr(updates, 'command_prefix', lambda *a, **kw: ['cached'])
+    monkeypatch.setattr(updates.subprocess, 'call', lambda *a, **kw: 0)
+    assert updates.startup(['skills', 'list'])[0] == 0
+
+
+def test_forwarded_route_metadata_is_consumed(online, monkeypatch):
+    monkeypatch.setenv(updates.FORWARDED, __version__)
+    monkeypatch.setenv('ECHO_KIT_UPDATE_ROUTE', json.dumps({'check_source': 'busy', 'stale': True,
+                                                        'latest_confirmed': False}))
+    _, info = updates.startup([])
+    assert info['check_source'] == 'busy' and info['stale']
+    assert 'ECHO_KIT_UPDATE_ROUTE' not in os.environ
+    assert 'ECHO_KIT_UPDATE_ROUTE' not in updates.child_environment()
+
+
+def test_lock_owner_exit_releases_lock(online, monkeypatch, tmp_path):
+    root = data_root() / 'updates'
+    root.mkdir(parents=True)
+    marker = tmp_path / 'held'
+    script = ('from filelock import FileLock; from pathlib import Path; import sys; '
+              'lock=FileLock(sys.argv[1]); lock.acquire(); Path(sys.argv[2]).touch(); '
+              'sys.stdin.read(1)')
+    child = subprocess.Popen([sys.executable, '-c', script, str(root / 'check.lock'), str(marker)],
+                             stdin=subprocess.PIPE)
+    import time
+    try:
+        deadline = time.monotonic() + 5
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert marker.exists()
+        child.kill(); child.wait(timeout=5)
+        monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
+        assert updates.check()['latest_version'] == NEXT_VERSION
+    finally:
+        if child.poll() is None:
+            child.kill(); child.wait(timeout=5)
+
+
+def test_expired_prepared_and_no_uv_fall_back(online, monkeypatch):
+    updates.remember_prepared(NEXT_VERSION)
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: (_ for _ in ()).throw(OSError()))
+    monkeypatch.setattr(updates.shutil, 'which', lambda name: None)
+    code, info = updates.startup(['skills', 'list'])
+    assert code is None and info['preparation_failed']
+    assert info['running_version'] == __version__
+
+
+def test_confirmed_current_release_does_not_select_old_prepared_hint(online, monkeypatch):
+    updates.remember_prepared(NEXT_VERSION)
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {__version__: ['>=3.11']})
+    monkeypatch.setattr(updates, 'probe', lambda *a, **kw: pytest.fail('ignored fresh metadata'))
+    assert updates.startup(['skills', 'list'])[0] is None

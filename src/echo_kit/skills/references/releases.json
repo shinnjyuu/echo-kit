@@ -102,5 +102,13 @@
     "applies_when": "Finding module documentation, choosing where rules belong or inspecting nested AGENTS.md outside echo/.",
     "steps": "Read the documents guide topic. Use docs map/context/read before editing; put global constraints at root and local constraints in the relevant directory, linking detailed requirements. Run docs check --rules; retain ordinary docs check for registered shared/private entries. Treat partial/unsupported discovery as unverified, not a complete client instruction view.",
     "no_change_when": "Existing documents, exported Skills and business repositories are not moved or overwritten. Semantic conflict resolution remains the agent and user responsibility. Runtime commands are not blocked by document checks."
+  },
+  {
+    "version": "0.11.1",
+    "changes": "Concurrent update checks wait up to three seconds and reuse completed checks. Online commands can fall back to verified cached newer runtimes; subcommand help follows routing.",
+    "configuration": "No project changes. Interpreter-specific prepared version metadata is stored in user update cache.",
+    "applies_when": "Parallel commands use an older installed entry, or release discovery/preparation is temporarily unavailable.",
+    "steps": "Upgrade the installed entry once from official PyPI to receive this router fix. Verify the PATH entry version; use updates check for diagnosis and ordinary subcommand help for routed help. Do not retry a business operation on another version after it started.",
+    "no_change_when": "Explicit offline calls stay on the calling package. Top-level help/version and runtime info remain local diagnostics. Business projects and exported Skills are not automatically modified."
   }
 ]
