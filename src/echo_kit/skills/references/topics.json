@@ -4,7 +4,8 @@
     "description": "Before editing shared/local/environment configuration",
     "sections": [
       "Configuration",
-      "Shared and local configuration"
+      "Shared and local configuration",
+      "Modular configuration"
     ],
     "references": []
   },

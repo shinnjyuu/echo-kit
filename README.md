@@ -186,3 +186,5 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 `docs check --rules` 检查规则文件及直接引用，不自动搬迁文档，也不判断业务语义是否冲突。个人材料仍通过私有入口显式读取。详细边界见 `guide echo-init --topic documents`。
 
 自动更新并发修复（0.11.1）：检查锁忙碌时短暂等待并复用结果，网络失败时优先使用已验证的较新缓存版本。子命令帮助跟随实际路由；显式 `--offline` 保持当前包。旧安装入口需升级一次才能获得修复，见[更新说明](docs/updates.md#0111-旧入口修复)。
+
+模块配置（0.12.0）：根 `echo-kit.toml` 可通过 `includes = ["services/orders/echo.toml"]` 显式加载模块的实验、服务、认证和项目配置。相对路径含义不变，本机差异仍写 `.echo-kit/local.toml`。用 `workspace check` 查看文件清单，`cases show ID` 查看用例配置来源；小项目无需拆分。详见[配置拆分](docs/modular-configuration.md)。

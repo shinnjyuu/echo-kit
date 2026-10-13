@@ -7,7 +7,6 @@ import re
 import subprocess
 import sys
 import time
-import tomllib
 import uuid
 from pathlib import Path
 
@@ -50,10 +49,9 @@ class Workspace:
         path = self.root / 'echo-kit.toml'
         if not path.exists():
             raise KitError('Missing echo-kit.toml; run workspace init')
-        cfg = tomllib.loads(path.read_text(encoding='utf-8-sig'))
-        local = self.root / '.echo-kit/local.toml'
-        if local.exists():
-            cfg = merge(cfg, tomllib.loads(local.read_text(encoding='utf-8-sig')))
+        from .configuration import Configuration
+        self.configuration = Configuration(self.root)
+        cfg = self.configuration.cfg
         self.environment = environment or cfg.get('default_environment', 'local')
         envs = cfg.get('environments', {})
         if environment and environment not in envs:

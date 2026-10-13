@@ -110,5 +110,13 @@
     "applies_when": "Parallel commands use an older installed entry, or release discovery/preparation is temporarily unavailable.",
     "steps": "Upgrade the installed entry once from official PyPI to receive this router fix. Verify the PATH entry version; use updates check for diagnosis and ordinary subcommand help for routed help. Do not retry a business operation on another version after it started.",
     "no_change_when": "Explicit offline calls stay on the calling package. Top-level help/version and runtime info remain local diagnostics. Business projects and exported Skills are not automatically modified."
+  },
+  {
+    "version": "0.12.0",
+    "changes": "Root includes explicitly load module TOML configurations for projects, services, auth and cases; workspace check and cases show expose value-free configuration provenance.",
+    "configuration": "Optional root includes array. Module definitions share one workspace; existing local and environment precedence is unchanged.",
+    "applies_when": "A growing workspace needs separate module-owned configuration files.",
+    "steps": "Read the configuration topic; keep small projects in one file. Move each definition once, preserve IDs and existing relative-path meanings, list files explicitly, and inspect workspace check / cases show sources. Track shared modules in Git; keep machine-specific changes in local.toml.",
+    "no_change_when": "Existing single-file projects require no migration. No directory scans, private includes, automatic business edits or exported-Skill overwrites."
   }
 ]

@@ -76,6 +76,7 @@ def case(ws, name):
     if ws.environment in ws.cfg.get('environments', {}):
         prefix += ['--environment', ws.environment]
     result = {'status': 'passed', 'case': item,
+              'configuration_sources': ws.configuration.sources('cases', name, ws.environment),
               'entrypoints': [[*prefix, module, 'run', name] for module in ('lab', 'verify')],
               'requirements': {'services': services, 'service_access': spec.get('service_access', 'shared'),
                                'auth': auth, 'browser': browser, 'verified': False},

@@ -256,3 +256,5 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 写入前分别判断团队／个人、全项目／局部、工作约束／详细需求。根目录 AGENTS.md 保留通用约束，模块 AGENTS.md 写局部约束与资料入口，原型和业务细节放独立文档。跨模块共用知识只留一份正文。发现放错位置先说明建议，再按授权整理与修复引用；CLI 不自动搬迁，也不自动裁定语义冲突。规则修改后执行 `docs check --rules`，涉及已登记文档入口再执行普通 `docs check`。
 
 自动更新并发修复（0.11.1）：检查锁忙碌时短暂等待并复用结果，网络失败时优先使用已验证的较新缓存版本。子命令帮助跟随实际路由；显式 `--offline` 保持当前包。旧安装入口需升级一次才能获得修复，见[更新说明](docs/updates.md#0111-旧入口修复)。
+
+模块配置（0.12.0）：根 `echo-kit.toml` 可通过 `includes = ["services/orders/echo.toml"]` 显式加载模块的实验、服务、认证和项目配置。相对路径含义不变，本机差异仍写 `.echo-kit/local.toml`。用 `workspace check` 查看文件清单，`cases show ID` 查看用例配置来源；小项目无需拆分。详见[配置拆分](docs/modular-configuration.md)。

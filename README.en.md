@@ -172,3 +172,5 @@ Browsers remain workspace-local. Put local port overrides in `.echo-kit/local.to
 `docs check --rules` checks rule files and direct references. It does not move documents or resolve semantic conflicts. Private material still requires explicit private-entry reads. See `guide echo-init --topic documents` for boundaries.
 
 Update routing fix (0.11.1): concurrent checks wait briefly and reuse results; network failures prefer verified cached newer runtimes. Subcommand help follows routing; explicit `--offline` stays on the calling package. Upgrade an older installed entry once to acquire the fix; see [updates](docs/updates.md).
+
+Modular configuration (0.12.0): root `echo-kit.toml` can declare `includes = ["services/orders/echo.toml"]` for module-owned cases, services, auth and projects. Path bases and local/environment precedence stay unchanged. `workspace check` lists config files; `cases show ID` identifies definition sources. Small projects can keep one file. See [protocol](docs/protocol.md#modular-configuration).

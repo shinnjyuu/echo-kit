@@ -41,7 +41,7 @@ def parser():
                         'map': 'Discover Markdown across the workspace without reading bodies',
                         'context': 'Read the directory AGENTS.md chain; not a client instruction resolver',
                         'read': 'Read an explicit shared Markdown file in bounded line ranges'}
-            cmd = sub.add_parser(action, **({'help': doc_help[action]} if module == 'docs' else
+            cmd = sub.add_parser(action, **({'description': 'Check workspace capabilities and configuration file provenance without dumping configuration values.'} if module == 'workspace' and action == 'check' else {'help': doc_help[action]} if module == 'docs' else
                 {'description': {'start': 'Register this workspace and show the Windows tray if owned resources are running. Honors CI, desktop availability and ECHO_KIT_TRAY=0.',
                                  'status': 'Read tray and resource process state without a workspace; does not run application health commands.',
                                  'stop': 'Exit only the tray. Services, browser containers and experiments continue. No workspace required.'}[action]}
@@ -190,8 +190,10 @@ def dispatch(args):
                 checks.append({'name': 'ready:' + name, 'status': 'passed' if healthy(ws, service) else 'unverified'})
         from .documentation import tool_info
         from .project_docs import summary
+        configuration = ws.configuration.report()
+        checks.append({'name': 'configuration', 'status': configuration['status']})
         return {'status': 'passed' if all(c['status'] == 'passed' for c in checks) else 'unverified', 'checks': checks,
-                'documents': summary(ws),
+                'documents': summary(ws), 'configuration': configuration,
                 'tool': tool_info(), 'update': ws.tool_update,
                 'unfinished_runs': [p.parent.name for p in ws.runs.glob('*/active.json')]}
     if args.module == 'cases':

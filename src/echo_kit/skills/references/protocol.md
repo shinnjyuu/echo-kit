@@ -348,3 +348,44 @@ Use project entry documents for orientation, mandatory rules and directory comma
 `cases list` and `runs list` use `--limit` (default 20, range 1..200), `--offset` (default 0), and return an object with items/total/limit/offset/next_offset/next_step. Keep filters when paging. Ordering is stable for unchanged data; concurrent new runs may shift offsets. Unknown categories/queries return empty results.
 
 `runs list` now returns summaries rather than the old full-record array: ID, case, started time, environment, status and needs_cleanup (active.json exists). Filter with `--case ID` and `--status STATUS`; sort newest started first, tie-break by ID descending, missing timestamps last. Missing legacy fields are null. Unreadable/malformed records are excluded, counted in issue_count and identified in at most five safe diagnostics (issues_truncated indicates more); normal rows remain usable. Full data is still available through runs show ID, compare and report. Listing never reads artifact/log bodies or deletes history. Resource and unfinished-run protections still inspect complete state independently of pagination.
+
+## Modular configuration
+
+Since 0.12.0, the shared root can explicitly register module TOML files with `includes`. No directory scan, wildcard, recursive include or automatic migration is performed. Keep small projects in one file; split only when modules benefit from independent maintenance. Modules remain part of the same workspace, not new workspaces.
+
+```toml
+# echo-kit.toml
+schema_version = 1
+name = "my-project"
+includes = ["services/orders/echo.toml", "services/users/echo.toml"]
+[browser]
+headless = false
+```
+
+```toml
+# services/orders/echo.toml
+[projects.orders]
+path = "services/orders"
+[cases.orders_refund]
+project = "orders"
+command = ["python", "scripts/check_refund.py"]
+description = "Verify order refunds"
+category = "orders/refund"
+services = ["orders_api"]
+docs = "services/orders/docs/refund.md"
+[services.orders_api]
+project = "orders"
+command = ["python", "server.py"]
+```
+
+Only projects/services/auth/cases and their environments.NAME overrides belong in module files. Workspace schema/name/default environment/output, browser, service_startup and documents remain in the root. Root-only includes must be a list of workspace-relative TOML files; modules, local configuration and environments cannot introduce includes. Existing case IDs and commands remain unchanged.
+
+Shared base definitions of the same entity cannot occur in two files, even with disjoint fields. The same applies to entity overrides within the same environment. Separate environments may each override an entity; an environment override may supplement its base definition. Errors name the key and conflicting files. Modules do not silently override each other or root definitions.
+
+Composition order is shared root plus modules, then .echo-kit/local.toml, then the selected environment. Dictionaries recursively merge and arrays replace. A local root-level value still cannot override a shared environment value; use the matching local environment. Private configuration remains one file, without includes. Machine-specific ports/paths stay private; secrets use existing injection mechanisms.
+
+Moving a definition does not change path meaning: project paths and case docs remain workspace-relative; commands still run in the selected project. Include file location does not become a new relative-path base. To split an existing configuration, preserve IDs, dependencies, commands and paths, move each shared definition once, register its file and verify equivalent effective configuration. Do not rewrite business projects or exported Skills automatically.
+
+Includes reject missing/invalid files, absolute/wildcard/outside paths, resolved symlink escapes, duplicate files, nested repositories/submodules, .echo-kit content, registered private materials and Git-ignored targets before reading module bodies or executing business operations. Git-unavailable/non-Git/untracked shared configurations are reported as unverified by workspace check without blocking normal loading solely on that basis. Private tracking/ignore problems are also reported, not automatically repaired.
+
+`workspace check` adds configuration.files and issues: paths, shared/private scopes and Git verification, never complete configuration values. `cases show ID` adds configuration_sources in effective merge order (base, local, shared environment, local environment), containing file path, scope, key, stage and environment; no config values. `cases list` stays compact. Find the case first, inspect its source, then edit the responsible file. `docs map` remains a Markdown map, not a TOML inventory. Configuration diagnostics do not execute module commands and do not expose TOML source lines on parse failure.
