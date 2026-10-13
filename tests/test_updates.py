@@ -366,3 +366,18 @@ def test_confirmed_current_release_does_not_select_old_prepared_hint(online, mon
     monkeypatch.setattr(updates, 'fetch_releases', lambda: {__version__: ['>=3.11']})
     monkeypatch.setattr(updates, 'probe', lambda *a, **kw: pytest.fail('ignored fresh metadata'))
     assert updates.startup(['skills', 'list'])[0] is None
+
+
+def test_serial_checks_with_same_clock_tick_refresh(online, monkeypatch):
+    monkeypatch.setattr(updates.time, 'time', lambda: 1000.0)
+    calls = []
+    def fetch():
+        calls.append(True)
+        return {NEXT_VERSION: ['>=3.11']}
+    monkeypatch.setattr(updates, 'fetch_releases', fetch)
+    assert updates.check()['source'] == 'network'
+    assert updates.check()['source'] == 'network'
+    assert len(calls) == 2
+    def fail(): raise OSError('unavailable')
+    monkeypatch.setattr(updates, 'fetch_releases', fail)
+    assert updates.check()['source'] == 'unavailable'

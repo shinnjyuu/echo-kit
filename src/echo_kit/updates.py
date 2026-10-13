@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from urllib.request import Request, urlopen
 from http.client import HTTPException
 
@@ -105,6 +106,7 @@ def _snapshot(refresh=False, no_network=False):
             return {}
 
     saved = cached()
+    observed_check = saved.get("check_id")
     now = time.time()
     if offline(no_network):
         return saved, 'offline'
@@ -114,7 +116,7 @@ def _snapshot(refresh=False, no_network=False):
         root.mkdir(parents=True, exist_ok=True)
         with FileLock(str(root / 'check.lock'), timeout=CHECK_WAIT_SECONDS):
             saved = cached()
-            if saved.get("completed_at", 0) >= now:
+            if saved.get("check_id") is not None and saved["check_id"] != observed_check:
                 return saved, "coalesced"
             if not refresh and saved.get('error') and 0 <= now - saved.get('attempted_at', 0) < ERROR_CACHE_SECONDS:
                 return saved, 'cached'
@@ -125,6 +127,7 @@ def _snapshot(refresh=False, no_network=False):
                 saved = {**saved, 'attempted_at': now, 'error': 'Release check unavailable; existing version retained.'}
                 source = 'unavailable'
             saved["completed_at"] = time.time()
+            saved["check_id"] = uuid.uuid4().hex
             save(path, saved)
             return saved, source
     except Timeout:
