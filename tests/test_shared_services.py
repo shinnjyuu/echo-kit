@@ -265,6 +265,33 @@ def test_legacy_pending_operation_and_duplicate_refuse_adoption(tmp_path):
         Services(a).down([x])
 
 
+def test_manual_resolution_allows_adoption_without_deleting_evidence(tmp_path):
+    import os
+    from echo_kit.processes import fingerprint
+    (a, x), _ = pair(tmp_path)
+    one = Services(a).up([x])[x]['instance']
+    legacy = {**one, 'identity': fingerprint(one['identity']['pid'])}
+    legacy.pop('registry_id')
+    Registry().file(key(a, x)).unlink()
+    save(Services(a).file, {x: legacy})
+    evidence = a.runs / 'old'
+    oid = Journal().acquire(a, 'run', {})
+    Journal().update(oid, evidence=str(evidence), run_id='old',
+                     identity={**fingerprint(os.getpid()), 'created': 0})
+    save(evidence / 'run.json', {'id': 'old', 'operation_id': oid, 'status': 'running'})
+    save(evidence / 'active.json', {'run_id': 'old'})
+    try:
+        with pytest.raises(KitError, match='existing runs'):
+            Services(a).up([x])
+        Journal().resolve(oid, 'User confirmed experiment finished')
+        Services(a).up([x])
+        assert Services(a).status()[x]['ready']
+        assert (evidence / 'active.json').exists()
+        assert read(evidence / 'run.json')['status'] == 'running'
+    finally:
+        Services(a).down([x])
+
+
 def test_unhealthy_registered_instance_not_restarted(tmp_path, monkeypatch):
     from echo_kit import services
     (a, x), _ = pair(tmp_path)

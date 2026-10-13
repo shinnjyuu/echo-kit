@@ -156,7 +156,23 @@ class Registry:
                canonical_path(op['workspace']) == canonical_path(ws.root) for op in Journal().list()):
             raise KitError('Finish existing operations before migrating service registration')
         own_evidence = {Journal().show(oid).get('evidence') for oid in own_operations}
-        if any(str(p.parent) not in own_evidence for p in ws.runs.glob('*/active.json')):
+        def confirmed_resolution(path):
+            run = read(path.parent / 'run.json', {})
+            oid = run.get('operation_id')
+            if not oid:
+                return False
+            op = Journal().show(oid)
+            return (op.get('result') == 'manually_resolved' and op.get('state') == 'finished'
+                    and bool(op.get('resolution_note')) and not op['held']
+                    and not op['owner_alive'] and not op['children_alive']
+                    and canonical_path(op['workspace']) == canonical_path(ws.root)
+                    and op.get('environment') == ws.environment
+                    and canonical_path(op.get('evidence') or '') == canonical_path(path.parent)
+                    and op.get('run_id') == run.get('id'))
+        # Manual resolution deliberately preserves active evidence. It must not
+        # be confused with an unresolved run during legacy service adoption.
+        if any(str(p.parent) not in own_evidence and not confirmed_resolution(p)
+               for p in ws.runs.glob('*/active.json')):
             raise KitError('Finish existing runs before migrating service registration')
         if process_state(legacy.get('identity')) != 'running':
             raise KitError('Legacy service identity is not confirmed; inspect original registration')

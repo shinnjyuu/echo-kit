@@ -137,6 +137,21 @@ def test_crash_pid_reuse_and_manual_resolution(tmp_path):
     assert journal.show(oid)['resolution_note'] and not journal.show(oid)['held']
 
 
+def test_resource_free_crashed_operation_can_be_confirmed(tmp_path):
+    ws = workspace(tmp_path)
+    journal = Journal()
+    oid = journal.acquire(ws, 'run', {})
+    with pytest.raises(KitError, match='alive'):
+        journal.resolve(oid, 'not allowed')
+    journal.update(oid, identity={**fingerprint(os.getpid()), 'created': 0})
+    with pytest.raises(KitError, match='note'):
+        journal.resolve(oid, '')
+    journal.resolve(oid, 'User confirmed no remaining business work')
+    assert journal.show(oid)['result'] == 'manually_resolved'
+    with pytest.raises(KitError, match='already released'):
+        journal.resolve(oid, 'duplicate')
+
+
 def test_browser_shared_use_blocks_down_only(tmp_path):
     ws = workspace(tmp_path)
     journal = Journal()

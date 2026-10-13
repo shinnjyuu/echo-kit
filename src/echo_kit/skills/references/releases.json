@@ -118,5 +118,13 @@
     "applies_when": "A growing workspace needs separate module-owned configuration files.",
     "steps": "Read the configuration topic; keep small projects in one file. Move each definition once, preserve IDs and existing relative-path meanings, list files explicitly, and inspect workspace check / cases show sources. Track shared modules in Git; keep machine-specific changes in local.toml.",
     "no_change_when": "Existing single-file projects require no migration. No directory scans, private includes, automatic business edits or exported-Skill overwrites."
+  },
+  {
+    "version": "0.12.1",
+    "changes": "Manual resolution can close abandoned operations with no held resources. Legacy service adoption recognizes explicitly resolved runs while retaining their original evidence.",
+    "configuration": "No configuration changes.",
+    "applies_when": "An exited operation has no held resources but remains unfinished, or preserved active evidence blocks adoption after manual resolution.",
+    "steps": "Verify business work and cleanup are finished before operations resolve ID --note. Retry legacy service adoption only after resolution; matching workspace, environment, run and evidence identity are required. Live processes still block resolution.",
+    "no_change_when": "Active operations, unresolved cleanup and unconfirmed process ownership remain protected. No automatic resolution, evidence deletion or service restart."
   }
 ]

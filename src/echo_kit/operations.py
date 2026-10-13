@@ -210,7 +210,7 @@ class Journal:
             record = self.show(oid)
             if record['owner_alive'] or record['children_alive']:
                 raise KitError('Operation process is still alive; cannot resolve')
-            if not record['held']:
+            if not record['held'] and record.get('state') == 'finished':
                 raise KitError('Operation is already released')
             record.update(held={}, state='finished', finished=time.time(), resolution_note=note,
                           result='manually_resolved')
