@@ -126,5 +126,13 @@
     "applies_when": "An exited operation has no held resources but remains unfinished, or preserved active evidence blocks adoption after manual resolution.",
     "steps": "Verify business work and cleanup are finished before operations resolve ID --note. Retry legacy service adoption only after resolution; matching workspace, environment, run and evidence identity are required. Live processes still block resolution. 0.12.1 publication was blocked by CI and was not released.",
     "no_change_when": "Active operations, unresolved cleanup and unconfirmed process ownership remain protected. No automatic resolution, evidence deletion or service restart."
+  },
+  {
+    "version": "0.12.3",
+    "changes": "--version follows ordinary update routing and prints the executing version. Successful transfer notices hide source-entry versions and are silent for version queries. runtime info adds version_scope=installed_entry.",
+    "configuration": "No workspace configuration changes; explicit offline version queries stay local.",
+    "applies_when": "Version output from an older installed entry is mistaken for the version used by ordinary commands.",
+    "steps": "Upgrade the installed entry once to acquire the new --version behavior; verify its PATH and --offline --version. Use --version for daily queries, runtime info for entry diagnosis, and run records for operation provenance.",
+    "no_change_when": "No global self-replacement or project migration. Existing update checks, cached runtime validation and no-retry-after-business rules remain intact."
   }
 ]

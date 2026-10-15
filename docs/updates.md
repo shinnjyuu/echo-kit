@@ -19,14 +19,14 @@ echo-kit --workspace WORKSPACE --json docs list
 以下诊断命令只查看当前入口，不自动转交新版；`docs --help` 等子命令帮助走普通更新路由：
 
 ```sh
-echo-kit --version
+echo-kit --offline --version
 echo-kit --help
 echo-kit --json runtime info
 echo-kit --json updates check
 echo-kit --json updates check --refresh
 ```
 
-`--version` 报告当前安装入口的版本，不代表下一条普通命令一定使用该版本。默认检查每次刷新成功的发行信息；网络失败后限频五分钟，`--refresh` 可绕过失败限频。不再用一小时成功缓存推迟更新。
+从 0.12.3 起，`echo-kit --version` 与普通命令共用更新路由，由最终执行包输出一行版本号；它说明本次执行版本，不保证之后的命令仍选中同一版。默认检查每次刷新成功的发行信息；网络失败后限频五分钟，`--refresh` 可绕过失败限频。不再用一小时成功缓存推迟更新。
 
 ## 失败和离线
 
@@ -46,7 +46,7 @@ echo-kit --workspace WORKSPACE --offline --json lab run CASE
 0.2/0.3 的版本任务机制已移除。旧入口自身仍会固定旧包，因此需要从新安装的命令执行一次迁移，不能继续通过旧入口调用迁移命令。
 
 1. 在原工作区和环境下收尾仍运行的操作、处理 `needs_cleanup` 和未完成运行。旧版本任务记录标记为 open 本身不再阻挡迁移，也无需伪造完成。
-2. 安装正式发布的 0.4.0+：`uv tool install --upgrade shinnjyuu-echo-kit`。已有精确版本约束时改用 `uv tool install --upgrade "shinnjyuu-echo-kit>=0.4.0"`；以实际 `echo-kit --version` 为准。源码验证时安装本轮 wheel，不假定未发布包可从 PyPI 获取。
+2. 安装正式发布的 0.4.0+：`uv tool install --upgrade shinnjyuu-echo-kit`。已有精确版本约束时改用 `uv tool install --upgrade "shinnjyuu-echo-kit>=0.4.0"`；以实际 `echo-kit --offline --version` 为准。源码验证时安装本轮 wheel，不假定未发布包可从 PyPI 获取。
 3. 直接执行 `echo-kit --workspace WORKSPACE updates setup`。只识别官方 0.2.0/0.3.0 生成且未修改的入口，先备份到忽略的 `.echo-kit/migrations/`，替换为调用已安装 `echo-kit` 的薄入口，移除旧 `echo-kit.lock.json`。不存在旧入口时不生成任何文件。
 4. 自定义或无法识别的入口不覆盖，手动保留团队修改并把旧命令改为直接 `echo-kit`。迁移后的兼容入口要求 PATH 中已安装的 Kit >= 0.4.0，不承担安装工具的职责。
 5. 更新项目自己的 README、AGENTS 和导出 Skill，删除 `task start/finish`、`--task`、`--policy` 和 `updates apply` 用法；工具不会自动重写这些项目文件。提交遵循本轮授权。
@@ -61,4 +61,12 @@ Skills 和协议从**实际执行的安装包**读取，不从 GitHub main 拉�
 
 ## 0.11.1 旧入口修复
 
-旧入口可能因更新锁忙碌而提前退回旧版。仅发布修复包不能改掉旧入口的路由代码，需要一次执行 `uv tool install --upgrade --index-url https://pypi.org/simple shinnjyuu-echo-kit`，再检查 PATH 对应的 `echo-kit --version`。普通命令的运行记录保留实际版本及回退原因；显式离线仍使用当前包。解析失败且更新未完成时会附加升级提示，业务执行开始后绝不换版本重跑。
+旧入口可能因更新锁忙碌而提前退回旧版。仅发布修复包不能改掉旧入口的路由代码，需要一次执行 `uv tool install --upgrade --index-url https://pypi.org/simple shinnjyuu-echo-kit`，再检查 PATH 对应的 `echo-kit --offline --version`。普通命令的运行记录保留实际版本及回退原因；显式离线仍使用当前包。解析失败且更新未完成时会附加升级提示，业务执行开始后绝不换版本重跑。
+
+## 0.12.3 版本查询
+
+日常使用 `echo-kit --version`。它会检查发行并准备可用版本，不只是打印远端版本号；成功转发不输出普通升级提示。查询失败或新版无法准备时，在 stderr 简短说明原因和实际可用版本，stdout 仍只有版本号。不得把缓存版本称为已确认最新版。
+
+`echo-kit --json runtime info` 不转发，保留原有字段并返回 `version_scope = "installed_entry"`。顶层帮助仍本地执行，子命令帮助继续跟随更新路由。普通成功提示显示实际版本，来源版本仍保存在运行元数据。实验执行版本查对应运行记录，不用另一条版本查询代替。
+
+旧入口的版本参数在本地直接处理，必须一次升级入口才能获得新行为：`uv tool install --upgrade --index-url https://pypi.org/simple "shinnjyuu-echo-kit>=0.12.3"`。发布前不要执行此安装命令。安装后核对 PATH 与 `echo-kit --offline --version`，再运行普通版本查询。本机制不自动替换全局安装、不修改业务项目；版本查询也不创建业务运行或启动服务。

@@ -132,7 +132,7 @@ def test_forwarded_child_does_not_check_again_or_propagate_guard(online, monkeyp
         updates.startup([])
 
 
-@pytest.mark.parametrize('args', [['--version'], ['--help'], ['runtime', 'info'], ['updates', 'check']])
+@pytest.mark.parametrize('args', [['--help'], ['runtime', 'info'], ['updates', 'check']])
 def test_diagnostics_do_not_forward(online, monkeypatch, args, capsys):
     monkeypatch.setattr(updates, 'startup', lambda *a: pytest.fail('diagnostic forwarded'))
     monkeypatch.setattr(updates, 'fetch_releases', lambda: {})
@@ -176,7 +176,7 @@ def test_forwarded_notice_and_source_consumed(online, monkeypatch, capsys, sourc
     assert main(['--json', 'guide', 'echo-init']) == 1
     output = capsys.readouterr()
     assert json.loads(output.out)['status'] == 'failed'
-    assert (source or 'unknown') in output.err and 'updates notes' in output.err
+    assert 'source:' not in output.err and 'updates notes' in output.err
     assert len(calls) == 1 and calls[0]['source_version'] == source
 
 
@@ -194,7 +194,8 @@ def test_parent_passes_source_once(online, monkeypatch):
     assert calls == [['future', 'guide', 'echo-init']]
 
 
-def test_busy_cache_routes_offline(online, monkeypatch):
+@pytest.mark.parametrize('raw', [['docs', 'map'], ['--version']])
+def test_busy_cache_routes_offline(online, monkeypatch, raw):
     from filelock import FileLock
     root = data_root() / 'updates'
     save(root / 'pypi.json', {'releases': {NEXT_VERSION: ['>=3.11']}})
@@ -204,10 +205,10 @@ def test_busy_cache_routes_offline(online, monkeypatch):
     monkeypatch.setattr(updates, 'command_prefix', lambda *a, **kw: ['prepared'])
     monkeypatch.setattr(updates.subprocess, 'call', lambda cmd, **kw: children.append(cmd) or 7)
     with FileLock(str(root / 'check.lock')):
-        code, info = updates.startup(['docs', 'map'])
+        code, info = updates.startup(raw)
     assert code == 7 and info['source'] == 'busy'
     assert probes == [(NEXT_VERSION, {'no_network': True})]
-    assert children == [['prepared', 'docs', 'map']]
+    assert children == [['prepared', *raw]]
 
 
 @pytest.mark.parametrize('failed', [False, True])
@@ -381,3 +382,63 @@ def test_serial_checks_with_same_clock_tick_refresh(online, monkeypatch):
     def fail(): raise OSError('unavailable')
     monkeypatch.setattr(updates, 'fetch_releases', fail)
     assert updates.check()['source'] == 'unavailable'
+
+
+@pytest.mark.parametrize('args', [['--version'], ['--json', '--version']])
+def test_version_routes_before_parser(online, monkeypatch, args):
+    seen = []
+    monkeypatch.setattr(updates, 'startup', lambda raw, offline: (seen.append(raw) or 7, {}))
+    assert main(args) == 7
+    assert seen == [args]
+
+
+def test_forwarded_version_is_single_line_and_no_notice(online, monkeypatch, capsys):
+    monkeypatch.setenv(updates.FORWARDED, __version__)
+    monkeypatch.setenv('ECHO_KIT_SOURCE_VERSION', '0.4.0')
+    monkeypatch.setattr(updates, 'check', lambda **kw: pytest.fail('recursive discovery'))
+    with pytest.raises(SystemExit) as error:
+        main(['--version'])
+    assert error.value.code == 0
+    out = capsys.readouterr()
+    assert out.out == __version__ + '\n' and out.err == ''
+    assert updates.FORWARDED not in os.environ and 'ECHO_KIT_SOURCE_VERSION' not in os.environ
+
+
+def test_offline_version_stays_on_entry(monkeypatch, capsys):
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: pytest.fail('offline network'))
+    monkeypatch.setattr(updates, 'probe', lambda *a, **kw: pytest.fail('offline transfer'))
+    with pytest.raises(SystemExit) as error:
+        main(['--offline', '--version'])
+    assert error.value.code == 0
+    out = capsys.readouterr()
+    assert out.out == __version__ + '\n'
+    assert 'offline' in out.err
+
+
+def test_runtime_info_has_explicit_entry_scope(monkeypatch, capsys):
+    monkeypatch.setattr(updates, 'startup', lambda *a: pytest.fail('local diagnostic routed'))
+    assert main(['--json', 'runtime', 'info']) == 0
+    info = json.loads(capsys.readouterr().out)
+    assert info['version'] == __version__ and info['version_scope'] == 'installed_entry'
+
+
+def test_version_prepares_before_forward_and_reports_fallback(online, monkeypatch, capsys):
+    monkeypatch.setattr(updates, 'fetch_releases', lambda: {NEXT_VERSION: ['>=3.11']})
+    calls = []
+    def probe(*a, **kw):
+        calls.append('probe')
+        raise KitError('cannot start')
+    monkeypatch.setattr(updates, 'probe', probe)
+    monkeypatch.setattr(updates.subprocess, 'call', lambda *a, **kw: pytest.fail('unprepared child'))
+    with pytest.raises(SystemExit) as error:
+        main(['--version'])
+    assert error.value.code == 0 and calls
+    out = capsys.readouterr()
+    assert out.out == __version__ + '\n' and 'could not prepare' in out.err
+
+
+def test_version_interruption_does_not_print_success(online, monkeypatch, capsys):
+    def interrupted(*a): raise KeyboardInterrupt()
+    monkeypatch.setattr(updates, 'startup', interrupted)
+    assert main(['--version']) == 130
+    assert __version__ not in capsys.readouterr().out

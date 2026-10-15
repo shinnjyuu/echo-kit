@@ -187,7 +187,7 @@ echo-kit updates notes
 echo-kit updates notes --since 0.5.0
 ```
 
-指南默认返回同一执行包的精简 Skill、核心规则、主题目录、当前更新说明和版本；按需使用 `--topic TOPIC`，`--full` 才返回完整协议和参考资料；支持 `--json`，无需工作区。普通调用检查最新版，`--offline` 读取当前可用包。`--version` 和 `runtime info` 是安装入口的诊断信息，不能代替业务执行版本。自动升级提示不代表项目已适配。
+指南默认返回同一执行包的精简 Skill、核心规则、主题目录、当前更新说明和版本；按需使用 `--topic TOPIC`，`--full` 才返回完整协议和参考资料；支持 `--json`，无需工作区。普通调用检查最新版，`--offline` 读取当前可用包。`--version` 按普通更新逻辑显示本次实际执行版本；`runtime info` 只诊断本地入口。一次实验的版本以运行记录为准。自动升级提示不代表项目已适配。
 
 前端调试推荐 **Kit 管理的 Docker 浏览器与只读 noVNC**。Docker 或构建失败时先处理错误，不自动改接外部浏览器。已有 `browser.endpoint` 仍生效，但只是显式兼容例外：Kit 不管理其镜像、显示模式和观看页，也不保证外部观看链接只读。查看 `browser up/status` 的能力信息；要切换时先检查配置来源和运行占用，在授权范围内调整配置后启动托管浏览器，不停止或接管原外部容器。
 
@@ -258,3 +258,5 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 自动更新并发修复（0.11.1）：检查锁忙碌时短暂等待并复用结果，网络失败时优先使用已验证的较新缓存版本。子命令帮助跟随实际路由；显式 `--offline` 保持当前包。旧安装入口需升级一次才能获得修复，见[更新说明](docs/updates.md#0111-旧入口修复)。
 
 模块配置（0.12.0）：根 `echo-kit.toml` 可通过 `includes = ["services/orders/echo.toml"]` 显式加载模块的实验、服务、认证和项目配置。相对路径含义不变，本机差异仍写 `.echo-kit/local.toml`。用 `workspace check` 查看文件清单，`cases show ID` 查看用例配置来源；小项目无需拆分。详见[配置拆分](docs/modular-configuration.md)。
+
+版本查询（0.12.3）：日常使用 `echo-kit --version`，成功时只输出版本号。离线检查指定安装使用 `echo-kit --offline --version`；排障使用 `echo-kit --json runtime info`（version_scope 为 installed_entry）。旧入口需升级一次才能获得新的查询行为，见[更新说明](docs/updates.md#0123-版本查询)。

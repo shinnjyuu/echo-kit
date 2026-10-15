@@ -129,7 +129,7 @@ Existing containers do not silently change modes. After active experiments finis
 
 ## Current guides and upgrade guidance
 
-On first Kit use in an AI session, read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`. Read again when the execution version changes. Each returns a compact Skill, core rules, topic directory, release notes and actual version from one package; use `--topic TOPIC` for details or `--full` for the full protocol and references; JSON and workspace-free reads are supported. Ordinary calls check the latest release; `--offline` reads the usable package. Installed-entry diagnostics (`--version`, `runtime info`) are not business execution provenance.
+On first Kit use in an AI session, read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`. Read again when the execution version changes. Each returns a compact Skill, core rules, topic directory, release notes and actual version from one package; use `--topic TOPIC` for details or `--full` for the full protocol and references; JSON and workspace-free reads are supported. Ordinary calls check the latest release; `--offline` reads the usable package. `--version` follows ordinary update routing and reports the version executed for that invocation. `runtime info` diagnoses the local entry; run records remain authoritative for an actual experiment.
 
 Use `echo-kit updates notes` for this release or `echo-kit updates notes --since 0.5.0` for later bundled history. An upgrade notice does not mean the project has been adapted.
 
@@ -174,3 +174,5 @@ Browsers remain workspace-local. Put local port overrides in `.echo-kit/local.to
 Update routing fix (0.11.1): concurrent checks wait briefly and reuse results; network failures prefer verified cached newer runtimes. Subcommand help follows routing; explicit `--offline` stays on the calling package. Upgrade an older installed entry once to acquire the fix; see [updates](docs/updates.md).
 
 Modular configuration (0.12.0): root `echo-kit.toml` can declare `includes = ["services/orders/echo.toml"]` for module-owned cases, services, auth and projects. Path bases and local/environment precedence stay unchanged. `workspace check` lists config files; `cases show ID` identifies definition sources. Small projects can keep one file. See [protocol](docs/protocol.md#modular-configuration).
+
+Version queries (0.12.3): `echo-kit --version` emits one version line after routing. Use `--offline --version` to inspect a specific installation, or JSON `runtime info` (`version_scope: installed_entry`) for local diagnosis. Older installed entries need one explicit upgrade to adopt this behavior; publishing alone does not change their version flag.

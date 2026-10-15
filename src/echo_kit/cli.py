@@ -142,7 +142,7 @@ def dispatch(args):
         return show()
     if args.module == 'runtime':
         from .documentation import tool_info
-        return {'status': 'passed', **tool_info()}
+        return {'status': 'passed', **tool_info(), 'version_scope': 'installed_entry'}
     if args.module == 'updates' and args.action == 'check':
         from .updates import check
         return check(refresh=args.refresh, no_network=args.offline)
@@ -274,8 +274,7 @@ def main(argv=None):
                 or route.module == 'task' or (route.module == 'updates' and route.action == 'apply')):
             raise KitError('Project version tasks and policies were removed. Use echo-kit directly; '
                            'run updates setup once to migrate an old project entry. Preserve historical records.')
-        diagnostic = (('--version' in raw and route.module is None)
-                      or (route.module is None and any(x in ('--help', '-h') for x in raw))
+        diagnostic = ((route.module is None and any(x in ('--help', '-h') for x in raw))
                       or (route.module, route.action) in (('runtime', 'info'), ('updates', 'check')))
         discovery = None
         if diagnostic:

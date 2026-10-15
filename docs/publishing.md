@@ -46,10 +46,10 @@ echo-kit --json runtime info
 5. 按本轮已有授权提交、推送并发布。若本轮范围仅包括修改文档或普通推送，交付时明确标记“随包文档待发版”，不要声称已安装用户已经获得更新。
 6. 发布后，从仓库外使用新发布的具体版本复验版本号和文档内容。确认包可获取且包含本轮修改后，才报告随包文档已发布。
 
-首次查询可用版本可用 `uvx --from shinnjyuu-echo-kit@latest echo-kit --version`；日常使用不固定项目版本，发布复验则显式选择具体版本并加 `--offline`。下面的 `NEW_VERSION` 和 `EMPTY_DIR` 是占位符，需替换为本次实际发布版本和空目录：
+首次查询可用版本可用 `uvx --from shinnjyuu-echo-kit@latest echo-kit --offline --version`；日常使用不固定项目版本，发布复验则显式选择具体版本并加 `--offline`。下面的 `NEW_VERSION` 和 `EMPTY_DIR` 是占位符，需替换为本次实际发布版本和空目录：
 
 ```sh
-uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --version
+uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --offline --version
 uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --help
 uvx --from shinnjyuu-echo-kit@NEW_VERSION echo-kit --offline skills export EMPTY_DIR
 ```

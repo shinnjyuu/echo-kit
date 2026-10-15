@@ -231,8 +231,9 @@ def startup(raw, no_network=False):
     if forwarded:
         if forwarded != __version__:
             raise KitError('Forwarded runtime does not match the prepared version')
-        print(f'Echo Kit: executing {__version__} (source: {source_version or "unknown"}); '
-              'read echo-kit updates notes and echo-kit guide echo-workbench (or echo-init / echo-lab).', file=sys.stderr)
+        if '--version' not in raw:
+            print(f'Echo Kit: executing {__version__}; '
+                  'read echo-kit updates notes and echo-kit guide echo-workbench (or echo-init / echo-lab).', file=sys.stderr)
         try:
             route_info = json.loads(route_info or '{}')
             if not isinstance(route_info, dict):
