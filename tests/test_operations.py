@@ -243,6 +243,34 @@ def test_live_child_prevents_manual_release(tmp_path):
     journal.resolve(oid, 'Fixture child stopped; no business tasks')
 
 
+def test_agent_resolution_preserves_evidence_and_other_operation(tmp_path):
+    ws = workspace(tmp_path)
+    (ws.root / 'pending.py').write_text(
+        "import os;from pathlib import Path;Path(os.environ['ECHO_RESULT']).write_text('{\"status\":\"passed\"}')")
+    with (ws.root / 'echo-kit.toml').open('a') as file:
+        file.write('\n[cases.pending]\ncreates_tasks=true\ncommand=["{python}","pending.py"]\n')
+    first = subprocess.run(cli(ws, 'verify', 'run', 'pending'), capture_output=True, text=True, timeout=10)
+    record = json.loads(first.stdout)[0]
+    path = ws.runs / record['id']
+    evidence = {p: p.read_bytes() for p in path.rglob('*') if p.is_file()}
+    assert (path / 'active.json') in evidence
+    journal = Journal()
+    other = journal.acquire(ws, 'other-experiment', {'service:other': 'exclusive'})
+    original_other = journal.file(other).read_bytes()
+    note = 'AI checked execution processes exited; stale local reservation released; cleanup remains unverified'
+    result = subprocess.run(cli(ws, 'operations', 'resolve', record['operation_id'], '--note', note),
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+    resolved = json.loads(result.stdout)
+    assert resolved['result'] == 'manually_resolved'
+    assert resolved['resolution_note'] == note and not resolved['held']
+    assert all(p.read_bytes() == content for p, content in evidence.items())
+    assert journal.file(other).read_bytes() == original_other
+    with pytest.raises(ResourceBusy):
+        journal.acquire(ws, 'conflict', {'service:other': 'exclusive'})
+    journal.release(other)
+
+
 def test_two_service_starts_do_not_lose_state(tmp_path):
     from test_core import free_port
     ws = workspace(tmp_path)

@@ -83,7 +83,7 @@ def parser():
             elif module == 'operations' and action != 'list':
                 cmd.add_argument('id')
                 if action == 'resolve':
-                    cmd.add_argument('--note', required=True)
+                    cmd.add_argument('--note', required=True, help='Reservation release checks and reason; does not certify business cleanup')
             elif module == 'services':
                 cmd.add_argument('names', nargs='*', help='Service names; down/restart without names select only instances started by this workspace/environment')
                 if action in ('up', 'restart'):

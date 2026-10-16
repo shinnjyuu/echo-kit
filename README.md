@@ -190,3 +190,5 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 模块配置（0.12.0）：根 `echo-kit.toml` 可通过 `includes = ["services/orders/echo.toml"]` 显式加载模块的实验、服务、认证和项目配置。相对路径含义不变，本机差异仍写 `.echo-kit/local.toml`。用 `workspace check` 查看文件清单，`cases show ID` 查看用例配置来源；小项目无需拆分。详见[配置拆分](docs/modular-configuration.md)。
 
 版本查询（0.12.3）：日常使用 `echo-kit --version`，成功时只输出版本号。离线检查指定安装使用 `echo-kit --offline --version`；排障使用 `echo-kit --json runtime info`（version_scope 为 installed_entry）。旧入口需升级一次才能获得新的查询行为，见[更新说明](docs/updates.md#0123-版本查询)。
+
+失效占用：AI 检查操作与登记子进程已退出后，可直接用 `operations resolve ID --note ...` 解除已确认失效的占用，无需单独人工确认；记录检查依据和原因。解除不停止服务、不删除数据，也不代表业务已清理。需要时使用现有清理适配器；远端任务仍在执行或状态无法判断时不能仅凭本地退出认定完成。已有导出指南不会自动覆盖，请导出到空目录后比较合并。

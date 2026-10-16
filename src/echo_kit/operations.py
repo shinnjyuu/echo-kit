@@ -205,7 +205,7 @@ class Journal:
 
     def resolve(self, oid, note):
         if not note or not note.strip():
-            raise KitError('A confirmed cleanup note is required')
+            raise KitError('A reservation release note describing the checks and reason is required')
         with self.lock():
             record = self.show(oid)
             if record['owner_alive'] or record['children_alive']:

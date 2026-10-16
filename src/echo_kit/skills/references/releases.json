@@ -134,5 +134,13 @@
     "applies_when": "Version output from an older installed entry is mistaken for the version used by ordinary commands.",
     "steps": "Upgrade the installed entry once to acquire the new --version behavior; verify its PATH and --offline --version. Use --version for daily queries, runtime info for entry diagnosis, and run records for operation provenance.",
     "no_change_when": "No global self-replacement or project migration. Existing update checks, cached runtime validation and no-retry-after-business rules remain intact."
+  },
+  {
+    "version": "0.12.4",
+    "changes": "AI may explicitly release confirmed stale operation reservations without a separate user confirmation. Help and notes distinguish reservation release from business cleanup.",
+    "configuration": "No configuration or command changes. Existing process checks and manually_resolved records remain compatible.",
+    "applies_when": "An exited operation leaves a stale reservation, including failed browser preparation or experiments without cleanup adapters.",
+    "steps": "Inspect operations show and evidence, confirm execution processes and children have exited, then resolve with a note recording checks and reason. Use cleanup adapters when needed; retain outstanding cleanup facts. Re-export old project guides to an empty directory and compare/merge.",
+    "no_change_when": "Active execution processes and children still block resolution. No automatic release, service stop, data deletion or evidence rewrite. Known remote tasks require separate state verification; ask for genuinely uncertain state or actions beyond authorization."
   }
 ]
