@@ -14,6 +14,8 @@ Declared requirements are not verified readiness. Exit success, login success, p
 
 At first use in a session read the relevant guide; re-read when the actual execution version changes, not every turn. Since 0.12.3, --version follows ordinary update routing for that invocation; runtime info diagnoses the local entry. Use run records for the version of an actual business operation. Read required topics before using the corresponding capability. Ordinary commands use latest-release routing; --offline reads the usable local package. A version notice is not completed project adaptation.
 
+Choose the smallest acceptance approach that matches user intent: human acceptance, AI interactive acceptance, or repeatable experiments. Human and one-off interactive checks do not require cases, permanent scripts or TOML entries. A bug alone does not require automation; preserve scripts only when repetition, precise timing or regression assertions justify them. Ordinary feature work keeps proportionate checks without automatically adding browser experiments.
+
 ## Configuration
 
 `schema_version=1`. Projects are `[projects.NAME] path="relative-or-absolute"`. `.echo-kit/local.toml` overrides shared values; `[environments.NAME]` overlays for explicit `--environment NAME`. Arrays replace, dictionaries merge. `output` overrides the default `.echo-kit/runs`.
@@ -393,3 +395,15 @@ Moving a definition does not change path meaning: project paths and case docs re
 Includes reject missing/invalid files, absolute/wildcard/outside paths, resolved symlink escapes, duplicate files, nested repositories/submodules, .echo-kit content, registered private materials and Git-ignored targets before reading module bodies or executing business operations. Git-unavailable/non-Git/untracked shared configurations are reported as unverified by workspace check without blocking normal loading solely on that basis. Private tracking/ignore problems are also reported, not automatically repaired.
 
 `workspace check` adds configuration.files and issues: paths, shared/private scopes and Git verification, never complete configuration values. `cases show ID` adds configuration_sources in effective merge order (base, local, shared environment, local environment), containing file path, scope, key, stage and environment; no config values. `cases list` stays compact. Find the case first, inspect its source, then edit the responsible file. `docs map` remains a Markdown map, not a TOML inventory. Configuration diagnostics do not execute module commands and do not expose TOML source lines on parse failure.
+
+## Acceptance approaches
+
+Choose from user intent, not a mandatory tier prompt. Human acceptance prepares needed services and provides the business frontend URL and short check points; until feedback, report awaiting human acceptance. noVNC is read-only and is not the human testing page. Do not start a Docker browser merely for human acceptance.
+
+AI interactive acceptance uses the existing compatible host tool or temporary session code to observe and interact, without requiring a permanent script, case, or TOML registration. Prefer the managed Docker browser; verify connection to its actual Playwright endpoint and continuity of the owned context across actions. A running container alone does not prove the host can interact with it. If no compatible tool is available, explain the missing capability and alternatives without inventing success, silently using an external browser, or forcing a full scripted experiment.
+
+Repeatable experiments reuse existing cases first; add scripts and minimal metadata when repeated verification, precise timing or regression assertions warrant it. Bugs can first be investigated interactively. Only query cases when reusing automation; do not make case discovery a prerequisite for human or one-off interaction. Existing Lab/Verify records and cleanup remain unchanged.
+
+All approaches retain authorization, environment and identity checks, secrets protection and business cleanup. For interactive work, hold service/browser reservations throughout the live session; browser up only protects startup. A compatible host must support that lifecycle, not just connection. Temporary code and artifacts belong in an ignored local directory and are not automatically committed. Use the bundled temporary-session reference; it is an example using existing Python helpers, not a new CLI or universal host adapter.
+
+Report exactly what was observed with necessary screenshots/logs. Do not invent run IDs or formal reports for an interactive session. browser.session retains trace and finally closes only its context and connection; leave the container and other contexts intact. Preserve outstanding cleanup evidence; local exit does not prove remote tasks completed. Existing exports require comparison/merge with a fresh export, not automatic overwrite.

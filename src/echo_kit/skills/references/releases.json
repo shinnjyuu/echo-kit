@@ -142,5 +142,13 @@
     "applies_when": "An exited operation leaves a stale reservation, including failed browser preparation or experiments without cleanup adapters.",
     "steps": "Inspect operations show and evidence, confirm execution processes and children have exited, then resolve with a note recording checks and reason. Use cleanup adapters when needed; retain outstanding cleanup facts. Re-export old project guides to an empty directory and compare/merge.",
     "no_change_when": "Active execution processes and children still block resolution. No automatic release, service stop, data deletion or evidence rewrite. Known remote tasks require separate state verification; ask for genuinely uncertain state or actions beyond authorization."
+  },
+  {
+    "version": "0.12.5",
+    "changes": "Acceptance guidance distinguishes human testing, one-off AI interaction and repeatable experiments; scripts and cases are no longer the default prerequisite.",
+    "configuration": "No new commands or configuration fields.",
+    "applies_when": "Simple acceptance was spending time creating permanent browser scripts and case definitions.",
+    "steps": "Choose the approach from user intent. Human testing uses the business URL; AI interaction needs a compatible live browser session and resource protection. Reuse or create cases only when repeatability is useful. Read the browser topic for the temporary-session reference.",
+    "no_change_when": "Existing cases remain valid. Authorization, cleanup and evidence requirements remain. noVNC stays read-only; old project exports require comparison and merge."
   }
 ]

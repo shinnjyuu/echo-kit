@@ -13,6 +13,7 @@
     "id": "cases",
     "description": "Discover experiments, register adapters, inspect results and cleanup",
     "sections": [
+      "Acceptance approaches",
       "Experiment directory and layered reading",
       "Experiment and verification subprocess",
       "Browser and records"
@@ -34,11 +35,14 @@
     "id": "browser",
     "description": "Before browser debugging, container changes or viewer recovery",
     "sections": [
+      "Acceptance approaches",
       "Visible browser",
       "Current guides and release notes",
       "Windows tray viewer (0.8.0+)"
     ],
-    "references": []
+    "references": [
+      "references/interactive-session.md"
+    ]
   },
   {
     "id": "auth",

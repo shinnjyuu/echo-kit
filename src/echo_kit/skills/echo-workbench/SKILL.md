@@ -7,9 +7,13 @@ description: Manage Echo Kit services or perform API and browser verification wh
 
 At first use read `echo-kit guide echo-workbench` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. `--offline` reads the usable local package. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
 
+## Choose acceptance, then read
+
+Choose the smallest acceptance approach that matches user intent: human acceptance, AI interactive acceptance, or repeatable experiments. Human and one-off interactive checks do not require cases, permanent scripts or TOML entries. A bug alone does not require automation; preserve scripts only when repetition, precise timing or regression assertions justify them. Do not ask users to choose a tier routinely. See [acceptance approaches](../references/protocol.md#acceptance-approaches).
+
 ## Discover, then read
 
-Read `docs list` and the shared project entry for mandatory team rules; read private notes explicitly only when needed. Use `cases list`, `cases list --category CATEGORY` or `cases list --query TEXT` to find existing experiments. Read `cases show ID` for the chosen explanation and declared prerequisites; these are not proof of readiness. Only read source or raw evidence when modifying or verifying it. Use paginated `runs list --case ID` to find history, then `runs show ID` for the selected record; never substitute a page of history for complete operation/cleanup checks.
+Read `docs list` and the shared project entry for mandatory team rules; read private notes explicitly only when needed. Only when reusing repeatable automation, use `cases list`, `cases list --category CATEGORY` or `cases list --query TEXT` to find existing experiments. Read `cases show ID` for the chosen explanation and declared prerequisites; these are not proof of readiness. Only read source or raw evidence when modifying or verifying it. Use paginated `runs list --case ID` to find history, then `runs show ID` for the selected record; never substitute a page of history for complete operation/cleanup checks.
 
 ## Required topics
 
@@ -25,7 +29,7 @@ Before using a capability, run `echo-kit guide echo-workbench --topic TOPIC` (or
 
 ## Workflow
 
-Inspect the intended workspace/environment and selected case. Read cases plus topics for its declared dependencies before execution. `verify run CASE` prepares only declared services/auth/browser; use services/auth/browser commands independently when appropriate. Start only needed dependencies; a frontend may use remote APIs. Do not automatically run Lab.
+Inspect workspace/environment and user intent first. For human acceptance prepare necessary services, give the business frontend URL and brief checks, and report awaiting human acceptance; do not start Docker merely for this. For AI interactive acceptance read browser and use a compatible tool with a persistent owned context; report observed results, not a fabricated run. For repeatable experiments select an existing case and read its required topics. `verify run CASE` prepares only declared services/auth/browser; use services/auth/browser commands independently when appropriate. Start only needed dependencies; a frontend may use remote APIs. Do not automatically run Lab.
 
 Leave owned services available for reuse. On resuming work, check operations and readiness before starting stopped resources; host exit is neither guaranteed survival nor cleanup. Before authenticated verification, read auth and confirm identity preparation, role and tenant separately from login success. Read browser before frontend work: prefer Kit-managed Docker, preserve explicit external exceptions and do not silently fall back.
 

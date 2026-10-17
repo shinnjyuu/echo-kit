@@ -7,9 +7,13 @@ description: Run and compare Echo Kit experiments when the user explicitly reque
 
 At first use read `echo-kit guide echo-lab` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. `--offline` reads the usable local package. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
 
+## Choose acceptance, then read
+
+Choose the smallest acceptance approach that matches user intent: human acceptance, AI interactive acceptance, or repeatable experiments. Human and one-off interactive checks do not require cases, permanent scripts or TOML entries. A bug alone does not require automation; preserve scripts only when repetition, precise timing or regression assertions justify them. Do not ask users to choose a tier routinely. See [acceptance approaches](../references/protocol.md#acceptance-approaches).
+
 ## Discover, then read
 
-Read `docs list` and the shared project entry for mandatory team rules; read private notes explicitly only when needed. Use `cases list`, `cases list --category CATEGORY` or `cases list --query TEXT` to find existing experiments. Read `cases show ID` for the chosen explanation and declared prerequisites; these are not proof of readiness. Only read source or raw evidence when modifying or verifying it. Use paginated `runs list --case ID` to find history, then `runs show ID` for the selected record; never substitute a page of history for complete operation/cleanup checks.
+Read `docs list` and the shared project entry for mandatory team rules; read private notes explicitly only when needed. Only when reusing repeatable automation, use `cases list`, `cases list --category CATEGORY` or `cases list --query TEXT` to find existing experiments. Read `cases show ID` for the chosen explanation and declared prerequisites; these are not proof of readiness. Only read source or raw evidence when modifying or verifying it. Use paginated `runs list --case ID` to find history, then `runs show ID` for the selected record; never substitute a page of history for complete operation/cleanup checks.
 
 ## Required topics
 
@@ -25,7 +29,7 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 
 ## Workflow
 
-Use the project's existing case/interpreter. State the hypothesis and required evidence; choose the smallest experiment that answers it. Lab does not automatically prepare services, authentication or browsers, and does not automatically invoke Workbench.
+Lab is for repeatable experiments, not the default for every acceptance request. Use the project's existing case/interpreter. State the hypothesis and required evidence; choose the smallest experiment that answers it. Lab does not automatically prepare services, authentication or browsers, and does not automatically invoke Workbench.
 
 After discovery and required topic reads, use `echo-kit --workspace PATH --actor "experiment purpose" --json lab run CASE --repeat 1`; increase repetitions only for a reason. `lab compare CASE --variants baseline candidate --repeat 3` compares explicit project variants. Each candidate/repetition uses independent records. Inspect the selected JSON and `runs show ID`; use `runs compare LEFT RIGHT` for checks and metrics. One run does not establish stability. Read cases before adding/changing adapters or interpreting their output.
 
