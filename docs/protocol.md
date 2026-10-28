@@ -16,6 +16,8 @@ At first use in a session read the relevant guide; re-read when the actual execu
 
 Choose the smallest acceptance approach that matches user intent: human acceptance, AI interactive acceptance, or repeatable experiments. Human and one-off interactive checks do not require cases, permanent scripts or TOML entries. A bug alone does not require automation; preserve scripts only when repetition, precise timing or regression assertions justify them. Ordinary feature work keeps proportionate checks without automatically adding browser experiments.
 
+When evidence is insufficient, trace actual input, transformation and output before claiming a cause. For logic use variables, stacks and breakpoints when needed; for streaming, timeout and concurrency use non-pausing correlated events with monotonic timing. Read the runtime debugging reference in the services, browser or cases topic only when needed.
+
 ## Configuration
 
 `schema_version=1`. Projects are `[projects.NAME] path="relative-or-absolute"`. `.echo-kit/local.toml` overrides shared values; `[environments.NAME]` overlays for explicit `--environment NAME`. Arrays replace, dictionaries merge. `output` overrides the default `.echo-kit/runs`.
@@ -407,3 +409,15 @@ Repeatable experiments reuse existing cases first; add scripts and minimal metad
 All approaches retain authorization, environment and identity checks, secrets protection and business cleanup. For interactive work, hold service/browser reservations throughout the live session; browser up only protects startup. A compatible host must support that lifecycle, not just connection. Temporary code and artifacts belong in an ignored local directory and are not automatically committed. Use the bundled temporary-session reference; it is an example using existing Python helpers, not a new CLI or universal host adapter.
 
 Report exactly what was observed with necessary screenshots/logs. Do not invent run IDs or formal reports for an interactive session. browser.session retains trace and finally closes only its context and connection; leave the container and other contexts intact. Preserve outstanding cleanup evidence; local exit does not prove remote tasks completed. Existing exports require comparison/merge with a fresh export, not automatic overwrite.
+
+## Runtime debugging
+
+Use runtime inspection only when proportionate to the unresolved question. Distinguish installed, connected, breakpoint hit, and cause verified; none implies the next. Paused execution is not evidence of normal latency. Record observations separately from inference and unverified hypotheses.
+
+Prefer isolated debug processes and synthetic inputs. Isolation does not isolate shared databases or remote APIs. Do not inject debug configuration, restart or pause existing services automatically. Shared startup methods belong in project scripts; local ports and paths belong in private overrides. Listen on loopback and verify the target process identity and source mapping. Debuggers can execute code: inspect selected values without evaluating side-effectful expressions or dumping credentials/whole objects.
+
+Before pausing an existing owned service, acquire exclusive service_resources including dependencies through operation, then re-read the registry and confirm the same instance generation and live process identity under that reservation. Abort before attaching if changed or conflicting. Keep the owner process alive throughout attach, inspection and cleanup. Kit cannot protect unregistered clients; exclusive reservation is not authorization to disrupt them. Existing external services remain externally owned.
+
+Remove only this session's breakpoints, resume only execution paused by this session, then disconnect. Only stop test processes created by this session. If resume, disconnect or child exit is uncertain, mark the operation requires_resolution before releasing its scope and keep diagnostic evidence; do not report successful cleanup or replay business requests. Track owned child identities with existing track_child. Do not clear someone else's debugger state.
+
+The bundled runtime-debugging reference contains isolated Python/debugpy and Node Inspector scenarios. These are optional fixtures and test drivers, not a public debugging API, CLI or universal host integration. Debugpy and Node are not required Kit dependencies. Preserve redacted findings, not full debugger traffic. Existing project exports require comparison and merge.

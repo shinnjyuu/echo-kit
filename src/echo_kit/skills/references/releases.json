@@ -150,5 +150,13 @@
     "applies_when": "Simple acceptance was spending time creating permanent browser scripts and case definitions.",
     "steps": "Choose the approach from user intent. Human testing uses the business URL; AI interaction needs a compatible live browser session and resource protection. Reuse or create cases only when repeatability is useful. Read the browser topic for the temporary-session reference.",
     "no_change_when": "Existing cases remain valid. Authorization, cleanup and evidence requirements remain. noVNC stays read-only; old project exports require comparison and merge."
+  },
+  {
+    "version": "0.12.6",
+    "changes": "Runtime debugging guidance distinguishes logic inspection from non-pausing timing evidence, with optional isolated Python and Node references.",
+    "configuration": "No new debug CLI, daemon or mandatory debug dependency.",
+    "applies_when": "Logs and visible results are insufficient to establish the actual failing branch or event order.",
+    "steps": "Read a services/browser/cases topic. Verify connection and target, reserve owned service dependencies exclusively before pausing, and confirm resume and disconnect. Keep evidence redacted and uncertainty explicit.",
+    "no_change_when": "Simple acceptance stays lightweight. Existing services are not restarted or instrumented automatically; project exports are not overwritten."
   }
 ]

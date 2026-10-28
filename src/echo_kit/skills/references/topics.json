@@ -16,9 +16,12 @@
       "Acceptance approaches",
       "Experiment directory and layered reading",
       "Experiment and verification subprocess",
-      "Browser and records"
+      "Browser and records",
+      "Runtime debugging"
     ],
-    "references": []
+    "references": [
+      "references/runtime-debugging.md"
+    ]
   },
   {
     "id": "services",
@@ -27,9 +30,12 @@
       "Managed service lifetime",
       "Parallel service startup",
       "Shared operations (local user)",
-      "Shared service instances"
+      "Shared service instances",
+      "Runtime debugging"
     ],
-    "references": []
+    "references": [
+      "references/runtime-debugging.md"
+    ]
   },
   {
     "id": "browser",
@@ -38,10 +44,12 @@
       "Acceptance approaches",
       "Visible browser",
       "Current guides and release notes",
-      "Windows tray viewer (0.8.0+)"
+      "Windows tray viewer (0.8.0+)",
+      "Runtime debugging"
     ],
     "references": [
-      "references/interactive-session.md"
+      "references/interactive-session.md",
+      "references/runtime-debugging.md"
     ]
   },
   {
