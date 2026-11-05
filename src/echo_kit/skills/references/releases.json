@@ -166,5 +166,13 @@
     "applies_when": "Users need to see changed layouts, entrypoints, interactions or status messages to understand the delivered result.",
     "steps": "Reuse current final-state acceptance captures, show key images with location/change/usage captions, label simulated or isolated states, and report verified behavior separately. If capture conditions are missing, explain why and provide available page entry and pending checks. Export to an empty directory and compare/merge existing project guides.",
     "no_change_when": "Backend-only changes use concise text without default diagrams. Human acceptance does not become AI browser acceptance just for screenshots. No fixed image count, before/after requirement, new cases or automatic Git additions; preserve existing authorization and information protection."
+  },
+  {
+    "version": "0.12.8",
+    "changes": "Status queries reuse per-service resource sets and per-project source snapshots; internal occupancy checks inspect process identities only for unfinished records. Named service status now limits queries. Guidance reduces repeated acceptance setup and unproductive model experiments.",
+    "configuration": "No configuration changes. operations list adds --unfinished; its default history and JSON shape remain unchanged. browser up/status adds required_playwright_version, the executing package's client requirement, not an external browser version.",
+    "applies_when": "Large operation histories slow queries, acceptance repeatedly rebuilds environments or fails late on client/login prerequisites, or model experiments expand before validating contracts and retry deterministic errors.",
+    "steps": "Use operations list --unfinished and named services status for current work. Reuse existing acceptance entrypoints; precheck the actual client's version, connection, target identity and login before a full flow. Separate controlled page replies from real model evaluation. Smoke-test representative samples, explain expected task counts, then report actual requests/retries/wall time/usage. Use ordinary commands for daily work and guides; check run versions and offline switches when diagnosing older behavior. Export to an empty directory and compare/merge project copies.",
+    "no_change_when": "History, locks, cleanup and shared/exclusive reservations remain intact, with no persistent index or cross-command cache. Explicit offline stays on the calling package. Existing adapters, project retry settings and agreed formal comparison strategies are not automatically changed. No business project migration, global entry upgrade or exported-Skill overwrite."
   }
 ]

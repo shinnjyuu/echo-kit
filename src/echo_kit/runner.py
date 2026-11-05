@@ -142,7 +142,7 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                         save(path / 'browser.json', browser)
                         event(path, record, 'browser', 'passed')
                 if kind != 'verify':
-                    record['services'] = {n: v for n, v in manager.status(probe=False).items() if n in names}
+                    record['services'] = manager.status(probe=False, names=names)
                 prepared()
                 record['resources'] = Journal().show(oid)['held']
                 save(path / 'run.json', record)

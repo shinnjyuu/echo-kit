@@ -31,7 +31,7 @@ def setup(ws):
                 or selection.get('schema_version') != 1 or selection.get('package') != PACKAGE
                 or selection.get('launcher_digest') != LEGACY_DIGEST):
             raise KitError('Project-owned or unrecognized entry: preserve files and manually replace old calls with echo-kit')
-        pending = [r['id'] for r in Journal().list() if canonical_path(r['workspace']) == canonical_path(ws.root)
+        pending = [r['id'] for r in Journal().list(unfinished=True) if canonical_path(r['workspace']) == canonical_path(ws.root)
                    and (r.get('held') or r.get('state') in ('running', 'needs_cleanup'))]
         active = [p.parent.name for p in ws.runs.glob('*/active.json')]
         if pending or active:

@@ -200,13 +200,13 @@ def describe(result):
     from . import __version__
     external = result.get('mode') == 'external'
     viewer = bool(result.get('viewer_url')) and not external
-    return {**result, 'tool_version': __version__,
+    return {**result, 'tool_version': __version__, 'required_playwright_version': PLAYWRIGHT_VERSION,
             'capabilities': {'manages_image': not external, 'controls_display_mode': not external,
                              'provides_viewer': viewer,
                              'guarantees_read_only': viewer and result.get('viewer_read_only') is True},
             'next_steps': ([
                 'External browser.endpoint is an explicit project exception; Kit does not manage its image or display mode, provide a viewer, or guarantee an external viewer is read-only.',
-                'For managed Docker viewing, inspect configuration sources and operations list; within user authorization remove the endpoint override and run browser up. Never stop, delete or adopt the external container.',
+                'For managed Docker viewing, inspect configuration sources and operations list --unfinished; within user authorization remove the endpoint override and run browser up. Never stop, delete or adopt the external container.',
                 'Read echo-kit guide echo-workbench and echo-kit updates notes.'
             ] if external else [
                 'Open viewer_url when available; headless and legacy containers have no managed viewer.',
@@ -260,8 +260,12 @@ def _manage(ws, action):
         return result
     if not state and action != 'up':
         return {'status': 'stopped', 'viewer_url': None}
-    if action == 'up' and version('playwright') != PLAYWRIGHT_VERSION:
-        raise KitError('Playwright client version mismatch')
+    if action == 'up':
+        client_version = version('playwright')
+        if client_version != PLAYWRIGHT_VERSION:
+            error = KitError(f'Playwright client version mismatch: required {PLAYWRIGHT_VERSION}, installed {client_version}')
+            error.details = {'required_playwright_version': PLAYWRIGHT_VERSION}
+            raise error
     if state:
         actual = actual_state(state)
         try:
@@ -285,7 +289,7 @@ def _manage(ws, action):
             return actual
         if migration_needed(state, cfg):
             error = KitError('Browser configuration/runtime changed; after active operations finish, run browser down then browser up')
-            error.details = {'browser': actual, 'migration_required': True}
+            error.details = {'browser': describe(actual), 'migration_required': True}
             raise error
         if not instance['State']['Running']:
             docker('start', state['id'])
@@ -324,7 +328,7 @@ def _manage(ws, action):
             reason = str(error)
             time.sleep(.5)
     error = KitError('Browser readiness timed out; container retained for diagnosis: ' + reason)
-    error.details = {'browser': actual_state(state), 'logs_command': 'docker logs ' + state['id']}
+    error.details = {'browser': describe(actual_state(state)), 'logs_command': 'docker logs ' + state['id']}
     raise error
 
 

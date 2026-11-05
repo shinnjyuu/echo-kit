@@ -5,7 +5,7 @@ description: Manage Echo Kit services or perform API and browser verification wh
 
 # Echo Workbench
 
-At first use read `echo-kit guide echo-workbench` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. `--offline` reads the usable local package. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
+At first use read `echo-kit guide echo-workbench` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. Daily work and guide reads use ordinary echo-kit; --offline and offline environment switches stay on the calling package, only for actual offline work or selected-package validation. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
 
 ## Choose acceptance, then read
 
@@ -32,6 +32,8 @@ Before using a capability, run `echo-kit guide echo-workbench --topic TOPIC` (or
 Inspect workspace/environment and user intent first. For human acceptance prepare necessary services, give the business frontend URL and brief checks, and report awaiting human acceptance; do not start Docker merely for this. For AI interactive acceptance read browser and use a compatible tool with a persistent owned context; report observed results, not a fabricated run. For repeatable experiments select an existing case and read its required topics. `verify run CASE` prepares only declared services/auth/browser; use services/auth/browser commands independently when appropriate. Start only needed dependencies; a frontend may use remote APIs. Do not automatically run Lab.
 
 Leave owned services available for reuse. On resuming work, check operations and readiness before starting stopped resources; host exit is neither guaranteed survival nor cleanup. Before authenticated verification, read auth and confirm identity preparation, role and tenant separately from login success. Read browser before frontend work: prefer Kit-managed Docker, preserve explicit external exceptions and do not silently fall back.
+
+Reuse existing startup, login and acceptance entrypoints first; using Kit is not a reason to rebuild APIs, proxies, login or databases. Add independent fixtures only when needed. Before a full page flow, use the actual script/client to check imported Playwright against required_playwright_version, connect minimally, confirm target identity and necessary login. Fix and recheck a failing prerequisite before repeating the full flow. Follow [acceptance approaches](../references/protocol.md#acceptance-approaches); labelled controlled replies can validate page interactions without repeatedly calling a real model, and do not establish model quality. Check current occupancy with operations list --unfinished and query only needed service names.
 
 Inspect the selected run and required evidence. Distinguish HTTP success, visible page, downloaded file, verified content and delivery; report failed and unverified checks honestly.
 

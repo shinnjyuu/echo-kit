@@ -5,7 +5,7 @@ description: Initialize or maintain Echo Kit project adapters when the user expl
 
 # Echo Init
 
-At first use read `echo-kit guide echo-init` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. `--offline` reads the usable local package. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
+At first use read `echo-kit guide echo-init` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. Daily work and guide reads use ordinary echo-kit; --offline and offline environment switches stay on the calling package, only for actual offline work or selected-package validation. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
 
 ## Choose acceptance, then read
 
@@ -31,7 +31,7 @@ Before using a capability, run `echo-kit guide echo-init --topic TOPIC` (or read
 
 Use only for requested onboarding. Inspect existing project README, build/test/CI/startup files and existing configuration first; reuse project conventions and ask only about unresolved target, authentication or scope. Initialize with `echo-kit --workspace PATH workspace init` only if absent. Define only requested capabilities; do not regenerate team adapters.
 
-Read configuration before registering capabilities; read cases only when registering repeatable experiments. Do not generate browser scripts by default. Prepare only the entrypoints required by the selected acceptance approach. For requested authenticated cases read auth, inspect reusable identity preparation and verify login plus required role/tenant; anonymous cases skip this. Prepare identities explicitly, never as an implicit login/startup side effect. Report not-needed, reused, created-and-verified or still-needs-preparation.
+Read configuration before registering capabilities; read cases only when registering repeatable experiments. Do not generate browser scripts or isolated APIs/proxies/databases by default just to use Kit. Reuse existing startup, login and acceptance entrypoints; add independent fixtures only when necessary. Prepare only the entrypoints required by the selected acceptance approach. Before a full page flow, use its actual client for minimal connection, target identity and necessary login checks; see browser for required_playwright_version. Fix one failing prerequisite before repeating the flow. For requested authenticated cases read auth, inspect reusable identity preparation and verify login plus required role/tenant; anonymous cases skip this. Prepare identities explicitly, never as an implicit login/startup side effect. Report not-needed, reused, created-and-verified or still-needs-preparation.
 
 Within authorized onboarding, read documents before docs setup; preserve existing entries. Validate with workspace check and one minimal authorized test. Report configured, verified and missing capabilities separately. Keep project entry documents short, when adding repeatable experiments, add concise case metadata and independent explanations without moving existing scripts.
 

@@ -80,12 +80,14 @@ def parser():
                     cmd.add_argument('--since', help='Read bundled releases newer than this version')
                 if action == 'check':
                     cmd.add_argument('--refresh', action='store_true', help='Bypass the release-check cache')
+            elif module == 'operations' and action == 'list':
+                cmd.add_argument('--unfinished', action='store_true', help='Only unfinished operations, including stale reservations and pending cleanup; full history is the default')
             elif module == 'operations' and action != 'list':
                 cmd.add_argument('id')
                 if action == 'resolve':
                     cmd.add_argument('--note', required=True, help='Reservation release checks and reason; does not certify business cleanup')
             elif module == 'services':
-                cmd.add_argument('names', nargs='*', help='Service names; down/restart without names select only instances started by this workspace/environment')
+                cmd.add_argument('names', nargs='*', help='Service names; status queries only these names (all if omitted); down/restart without names select only instances started by this workspace/environment')
                 if action in ('up', 'restart'):
                     cmd.add_argument('--jobs', type=int, help='Concurrent service starts (default: all selected services unless configured; 1 is serial)')
             elif module == 'auth':
@@ -150,7 +152,7 @@ def dispatch(args):
         from .operations import Journal
         journal = Journal()
         if args.action == 'list':
-            return {'operations': journal.list()}
+            return {'operations': journal.list(unfinished=args.unfinished)}
         if args.action == 'show':
             return journal.show(args.id)
         return journal.resolve(args.id, args.note)
@@ -220,7 +222,7 @@ def dispatch(args):
         from .services import Services
         service = Services(ws)
         if args.action == 'status':
-            return service.status()
+            return service.status(names=args.names or None)
         if len(args.names) != 1:
             raise KitError('logs requires one service name')
         return service.logs(args.names[0])

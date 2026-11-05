@@ -5,7 +5,7 @@ description: Run and compare Echo Kit experiments when the user explicitly reque
 
 # Echo Lab
 
-At first use read `echo-kit guide echo-lab` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. `--offline` reads the usable local package. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
+At first use read `echo-kit guide echo-lab` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. Daily work and guide reads use ordinary echo-kit; --offline and offline environment switches stay on the calling package, only for actual offline work or selected-package validation. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
 
 ## Choose acceptance, then read
 
@@ -30,6 +30,8 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 ## Workflow
 
 Lab is for repeatable experiments, not the default for every acceptance request. Use the project's existing case/interpreter. State the hypothesis and required evidence; choose the smallest experiment that answers it. Lab does not automatically prepare services, authentication or browsers, and does not automatically invoke Workbench.
+
+For model experiments read cases / [economical model experiments](../references/protocol.md#economical-model-experiments). Start with a few representative samples to validate contract, units, references and saved results before expanding versions or rounds; state expected task count first. Distinguish transient failures from confirmed structural errors; stop and diagnose samples that the same input cannot repair. Keep project retries and agreed formal strategies unless an authorized change is made. Report actual requests, retries, wall time and model usage (unknown when unavailable), retaining incomplete samples and strategy changes. Reuse existing environments; do not default to a large matrix or new fixtures.
 
 After discovery and required topic reads, use `echo-kit --workspace PATH --actor "experiment purpose" --json lab run CASE --repeat 1`; increase repetitions only for a reason. `lab compare CASE --variants baseline candidate --repeat 3` compares explicit project variants. Each candidate/repetition uses independent records. Inspect the selected JSON and `runs show ID`; use `runs compare LEFT RIGHT` for checks and metrics. One run does not establish stability. Read cases before adding/changing adapters or interpreting their output.
 

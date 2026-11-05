@@ -1,4 +1,5 @@
 """Per-user operation journal. File locks guard transactions, never business work."""
+import math
 import os
 import sys
 import time
@@ -122,25 +123,52 @@ class Journal:
     def file(self, oid):
         return self.root / (safe_name(oid) + '.json')
 
-    def show(self, oid):
-        value = read(self.file(oid))
+    def _read(self, oid):
+        try:
+            value = read(self.file(oid))
+        except (OSError, ValueError) as error:
+            raise KitError('Cannot read operation record: ' + oid) from error
         if value is None:
             raise KitError('Unknown operation: ' + oid)
+        if (not isinstance(value, dict) or value.get('id') != oid
+                or value.get('state') not in ('running', 'needs_cleanup', 'finished')
+                or not isinstance(value.get('held'), dict)
+                or any(not isinstance(key, str) or mode not in ('shared', 'exclusive')
+                       for key, mode in value['held'].items())
+                or not isinstance(value.get('identity'), dict)
+                or type(value.get('started')) not in (int, float) or not math.isfinite(value['started'])
+                or (value.get('finished') is not None and
+                    (type(value['finished']) not in (int, float) or not math.isfinite(value['finished'])))
+                or not isinstance(value.get('children', []), list)
+                or any(not isinstance(child, dict) for child in value.get('children', []))):
+            raise KitError('Invalid operation record: ' + oid)
+        return value
+
+    def show(self, oid):
+        return self._describe(self._read(oid))
+
+    def _describe(self, value):
         value['owner_alive'] = matches(value['identity'])
         value['children_alive'] = any(matches(child) for child in value.get('children', []))
         if value['held'] and not value['owner_alive']:
             value['state'] = 'needs_cleanup'
         value['duration'] = (value.get('finished') or time.time()) - value['started']
-        value['query'] = 'echo-kit operations show ' + oid
+        value['query'] = 'echo-kit operations show ' + value['id']
         return value
 
-    def list(self):
-        return [self.show(p.stem) for p in sorted(self.root.glob('*.json'))]
+    def list(self, unfinished=False):
+        result = []
+        for path in sorted(self.root.glob('*.json')):
+            value = self._read(path.stem)
+            if unfinished and value['state'] == 'finished' and value['held'] == {}:
+                continue
+            result.append(self._describe(value))
+        return result
 
     def acquire(self, ws, action, resources, run_id=None, evidence=None):
         from . import __version__
         with self.lock():
-            blockers = [r for r in self.list() if r['held'] and any(
+            blockers = [r for r in self.list(unfinished=True) if r['held'] and any(
                 key in r['held'] and ('exclusive' in (mode, r['held'][key]))
                 for key, mode in resources.items())]
             if blockers:

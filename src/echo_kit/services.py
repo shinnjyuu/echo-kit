@@ -81,12 +81,13 @@ class Services:
         self.ws = ws
         self.file = ws.state / ('services-' + safe_name(ws.environment) + '.json')
 
-    def instances(self):
+    def instances(self, names=None):
         from .service_registry import Registry, key
         registry = Registry()
         local = read(self.file, {})
         result = {}
-        for name, spec in self.ws.cfg.get('services', {}).items():
+        for name in self.ws.cfg.get('services', {}) if names is None else names:
+            spec = self.ws.cfg['services'][name]
             if spec.get('mode', 'managed') == 'external':
                 continue
             value = registry.get(key(self.ws, name))
@@ -102,17 +103,25 @@ class Services:
             Registry().create(self.ws, name, value)
             notify(self.ws)
 
-    def status(self, probe=True):
+    def status(self, probe=True, names=None):
         from .service_registry import process_state
-        state = self.instances()
+        specs = self.ws.cfg.get('services', {})
+        selected = list(specs) if names is None else list(dict.fromkeys(names))
+        for name in selected:
+            if name not in specs:
+                raise KitError('Unknown service: ' + name)
+        state = self.instances(selected)
         from .operations import Journal, service_resources
-        operations = Journal().list()
+        operations = Journal().list(unfinished=True)
+        occupied = [(op, set(op['held'])) for op in operations if op['held']]
+        snapshots = {}
         result = {}
-        for name, spec in self.ws.cfg.get('services', {}).items():
+        for name in selected:
+            spec = specs[name]
             instance = state.get(name)
             actual = process_state(instance['identity']) if instance else None
-            occupants = [op for op in operations if set(op['held']).intersection(
-                service_resources(self.ws, [name], builds=False))]
+            resources = set(service_resources(self.ws, [name], builds=False))
+            occupants = [op for op, held in occupied if held.intersection(resources)]
             result[name] = {'mode': spec.get('mode', 'managed'),
                            'owned': actual == 'running',
                            'process_state': actual,
@@ -121,7 +130,7 @@ class Services:
                            'origin': instance.get('origin') if instance else None,
                            'references': instance.get('references', []) if instance else [],
                            'migration_required': bool(instance and instance.get('legacy')),
-                           'source_changed_since_start': self._source_changed(spec, instance),
+                           'source_changed_since_start': self._source_changed(spec, instance, snapshots),
                            'occupants': occupants,
                            'users': [{'operation_id': o['id'], 'workspace': o['workspace'],
                                       'environment': o['environment'], 'state': o['state']}
@@ -169,11 +178,20 @@ class Services:
                     startup_locks.close()
                 yield oid, prepared
 
-    def _source_changed(self, spec, instance):
+    def _source_changed(self, spec, instance, snapshots=None):
         if not instance or not instance.get('source'):
             return None
         try:
-            return source_snapshot(self.ws.project(spec.get('project'))) != instance['source']
+            path = self.ws.project(spec.get('project'))
+            if snapshots is None:
+                return source_snapshot(path) != instance['source']
+            key = str(path.resolve())
+            if key not in snapshots:
+                try:
+                    snapshots[key] = source_snapshot(path)
+                except (KitError, OSError, subprocess.TimeoutExpired):
+                    snapshots[key] = None
+            return snapshots[key] != instance['source'] if snapshots[key] is not None else 'unknown'
         except (KitError, OSError, subprocess.TimeoutExpired):
             return 'unknown'
 

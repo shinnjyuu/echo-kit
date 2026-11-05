@@ -153,7 +153,7 @@ class Registry:
         current = self.get(key(ws, name))
         own_operations = {oid for oid, _ in _held.get()}
         if any(op['held'] and op['id'] not in own_operations and
-               canonical_path(op['workspace']) == canonical_path(ws.root) for op in Journal().list()):
+               canonical_path(op['workspace']) == canonical_path(ws.root) for op in Journal().list(unfinished=True)):
             raise KitError('Finish existing operations before migrating service registration')
         own_evidence = {Journal().show(oid).get('evidence') for oid in own_operations}
         def confirmed_resolution(path):

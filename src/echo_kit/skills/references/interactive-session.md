@@ -4,6 +4,10 @@ This is a reference using existing Python helpers, not a new CLI or a mandatory 
 
 Prepare only needed services and the managed browser first, within authorization. Check readiness and authentication using existing project capabilities. Supply the actual workspace and all services used by the interaction; dependencies are included. The example does not start services or create accounts. For manual testing provide the business frontend URL instead, without this session or a Docker requirement.
 
+Reuse entrypoint → minimal connection/identity/login checks → this task's key actions → necessary screenshots → cleanup. Reuse the existing API, proxy, login and data setup; using Kit alone does not require independent fixtures. Before a full flow, compare browser up/status required_playwright_version with the Playwright actually imported in the script's interpreter (for Python, importlib.metadata.version('playwright') and playwright.__file__; for Node, the package resolved by that script). This metadata is the Kit package's requirement, not a measurement of an external browser. Use that same client to connect and check the intended environment/account/tenant and necessary login, without printing credentials. Fix and recheck only the failing prerequisite before a full retry.
+
+For selector, layout and page-flow checks, reuse explicitly labelled controlled model replies when appropriate. They verify the exercised page behavior, not model quality; do not make another real model request for each selector correction. Real model evaluation follows the separate cases-topic guidance and the task's agreed scope.
+
 ```python
 from contextlib import contextmanager
 from pathlib import Path

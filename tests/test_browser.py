@@ -65,11 +65,14 @@ def test_headed_loopback_readonly_and_open_only_once(ws, runtime, monkeypatch):
     first = browser.manage(ws, 'up')
     second = browser.manage(ws, 'up')
     assert first['headless'] is False and first['viewer_read_only']
+    assert first['required_playwright_version'] == second['required_playwright_version'] == browser.PLAYWRIGHT_VERSION
     assert opened == [first['viewer_url']]
     assert second['viewer_open_attempted']
     launch = next(c for c in runtime if c[0] == 'run')
     assert '127.0.0.1:19323:3000' in launch and '127.0.0.1:19324:6080' in launch
-    assert browser.manage(ws, 'status')['viewer_url'] == first['viewer_url']
+    status = browser.manage(ws, 'status')
+    assert status['viewer_url'] == first['viewer_url']
+    assert status['required_playwright_version'] == browser.PLAYWRIGHT_VERSION
     browser.manage(ws, 'down')
     assert ('rm', '-f', 'owned-browser') in runtime
 
@@ -235,7 +238,17 @@ def test_external_capability_context(ws, monkeypatch, fails, action):
     else:
         result = browser.manage(ws, action)
     assert result['mode'] == 'external' and result['tool_version'] == __version__
+    assert result['required_playwright_version'] == browser.PLAYWRIGHT_VERSION
     assert result['endpoint'] == ws.cfg['browser']['endpoint']
     assert result['viewer_url'] == ws.cfg['browser']['viewer_url']
     assert not any(result['capabilities'].values())
     assert result['next_steps'] and result['viewer_read_only'] is None
+
+
+def test_stopped_metadata_and_client_mismatch_before_launch(ws, monkeypatch):
+    monkeypatch.setattr(browser, 'docker', lambda *a: pytest.fail('must not launch'))
+    assert browser.manage(ws, 'status')['required_playwright_version'] == browser.PLAYWRIGHT_VERSION
+    monkeypatch.setattr(browser, 'version', lambda name: '0.1.0')
+    with pytest.raises(KitError, match='required 1.63.0, installed 0.1.0') as error:
+        browser.manage(ws, 'up')
+    assert error.value.details['required_playwright_version'] == browser.PLAYWRIGHT_VERSION

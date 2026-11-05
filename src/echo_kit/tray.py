@@ -153,7 +153,7 @@ def snapshot():
     from .service_registry import Registry, process_state as shared_state
     from .operations import Journal
     shared = []
-    operations = Journal().list()
+    operations = Journal().list(unfinished=True)
     for record in Registry().all():
         state = shared_state(record['identity'])
         shared.append({'name': record.get('resource_id') or record['origin']['name'],

@@ -122,7 +122,7 @@ class Startup:
         futures = {}
         failed = interrupted = False
         if not self.names:
-            return self.manager.status()
+            return self.manager.status(probe=False)
         pool = ThreadPoolExecutor(max_workers=self.jobs)
         try:
             while pending or futures:

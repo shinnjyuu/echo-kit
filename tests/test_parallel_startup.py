@@ -275,3 +275,13 @@ def test_empty_selection_needs_no_executor(manager, monkeypatch):
     manager.ws.cfg['services'] = {}
     monkeypatch.setattr(startup, 'ThreadPoolExecutor', lambda **kw: pytest.fail('empty created executor'))
     assert manager.up([]) == {}
+
+
+def test_startup_snapshot_keeps_mapping_without_unrelated_health_checks(manager, monkeypatch):
+    import echo_kit.services as services
+    monkeypatch.setattr(services, 'healthy', lambda *a: pytest.fail('snapshot ran health check'))
+    monkeypatch.setattr(manager, '_up', lambda *a: 'reused')
+    result = manager.up(['a'])
+    assert set(result) == set('abcd')
+    assert result['a']['startup']['result'] == 'reused' and result['a']['ready'] is True
+    assert all(result[n]['ready'] is None and 'startup' not in result[n] for n in 'bcd')

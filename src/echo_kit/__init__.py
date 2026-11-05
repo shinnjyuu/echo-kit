@@ -1,2 +1,2 @@
 """Echo Kit: project-owned adapters, independent execution tools."""
-__version__ = "0.12.7"
+__version__ = "0.12.8"
