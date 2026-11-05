@@ -410,6 +410,22 @@ All approaches retain authorization, environment and identity checks, secrets pr
 
 Report exactly what was observed with necessary screenshots/logs. Do not invent run IDs or formal reports for an interactive session. browser.session retains trace and finally closes only its context and connection; leave the container and other contexts intact. Preserve outstanding cleanup evidence; local exit does not prove remote tasks completed. Existing exports require comparison/merge with a fresh export, not automatic overwrite.
 
+### Page change handoff
+
+When the task changes user-visible layout, entrypoints, interactions or status messages, proactively include key screenshots and short usage explanations in the handoff. Judge by visible behavior, including page changes caused by backend work, rather than by frontend/backend file location. Backend-only changes use concise behavior and verification text without default diagrams or screenshots.
+
+Use a small, useful selection with no fixed count. Prefer displaying actual images inline in the conversation with captions explaining where the change is, what changed and how to use it; if inline images are unsupported, provide accessible image links. Capture the final implementation and reuse this task's acceptance images when they still reflect it. Keep key content legible and unobscured. Before/after captures are optional. Label isolated acceptance pages, simulated data and controlled states explicitly; do not substitute design mockups or stale captures for the actual result. Apply existing credential/business-data protections and keep temporary images in project-approved ignored local output, without automatically adding them to Git.
+
+Keep the selected human/interactive/repeatable acceptance approach. Reuse available authorized page interaction; do not require permanent scripts, cases, TOML registration, a separate report or a Docker session merely for screenshots. In particular, human acceptance does not automatically become AI browser acceptance. If the page, authentication or compatible interaction is unavailable, state why screenshots were not obtained, provide an available business URL and pending checks, and do not invent access or a successful result. Screenshots explain the page; state separately what behavior was actually verified. A picture alone does not prove refresh recovery, cancellation, timing or business correctness.
+
+A compact handoff example for a changed task-details entry:
+
+- Change overview: task preparation now has a details entry.
+- Key screenshot and caption: show the actual entry and opened details; explain where to click and what the user can read. Identify any simulated data used.
+- Verified scope and pending checks: report the actions actually exercised and remaining checks. If screenshots were unavailable, replace the image portion with the reason and available page entry.
+
+Use only the parts needed for this change, not a mandatory long-form document. Existing project exports remain independent copies: export to an empty directory, compare and merge while preserving project edits.
+
 ## Runtime debugging
 
 Use runtime inspection only when proportionate to the unresolved question. Distinguish installed, connected, breakpoint hit, and cause verified; none implies the next. Paused execution is not evidence of normal latency. Record observations separately from inference and unverified hypotheses.

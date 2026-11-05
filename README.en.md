@@ -71,6 +71,8 @@ The AI will inspect the project and local environment, install the tool, configu
 - **Results backed by evidence:** checks and reports for each run, with optional screenshots, downloaded files, and other artifacts.
 - **Clear handoff instructions:** which capabilities are available, what has actually been tested, and how to use them next time.
 
+For visible page or interaction changes, the updated guidance asks the AI to proactively show key screenshots with short location, change, and usage captions, reusing this task's acceptance captures. Simulated data and isolated pages are labeled; behavior verification is reported separately. Backend-only changes use text without default diagrams. If screenshots are unavailable, explain why, provide an available business URL and pending checks, and keep the selected human acceptance approach without requiring screenshot scripts. See [page change handoff](docs/protocol.md#page-change-handoff).
+
 After the relevant capabilities are set up, you can ask your AI:
 
 > Use Echo Kit to compare the current implementation with the candidate. Run each three times and show me the metric differences.

@@ -158,5 +158,13 @@
     "applies_when": "Logs and visible results are insufficient to establish the actual failing branch or event order.",
     "steps": "Read a services/browser/cases topic. Verify connection and target, reserve owned service dependencies exclusively before pausing, and confirm resume and disconnect. Keep evidence redacted and uncertainty explicit.",
     "no_change_when": "Simple acceptance stays lightweight. Existing services are not restarted or instrumented automatically; project exports are not overwritten."
+  },
+  {
+    "version": "0.12.7",
+    "changes": "Guidance now asks agents to proactively show key screenshots and short usage captions when handing off user-visible page or interaction changes, including visible changes caused by backend work.",
+    "configuration": "No new commands, configuration, report system or screenshot scripts. Existing browser/cases topics include the detailed handoff guidance.",
+    "applies_when": "Users need to see changed layouts, entrypoints, interactions or status messages to understand the delivered result.",
+    "steps": "Reuse current final-state acceptance captures, show key images with location/change/usage captions, label simulated or isolated states, and report verified behavior separately. If capture conditions are missing, explain why and provide available page entry and pending checks. Export to an empty directory and compare/merge existing project guides.",
+    "no_change_when": "Backend-only changes use concise text without default diagrams. Human acceptance does not become AI browser acceptance just for screenshots. No fixed image count, before/after requirement, new cases or automatic Git additions; preserve existing authorization and information protection."
   }
 ]
