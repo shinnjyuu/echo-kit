@@ -10,11 +10,13 @@ import time
 import urllib.request
 import webbrowser
 from contextlib import contextmanager
+from functools import partial
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from . import docker_host, launches
 from .core import KitError, read, save
 
 PLAYWRIGHT_VERSION = '1.63.0'
@@ -22,9 +24,14 @@ IMAGE = 'mcr.microsoft.com/playwright:v1.63.0-noble'
 RUNTIME_VERSION = 1
 
 
-def docker(*args, timeout=90, log_file=None):
+def docker(*args, timeout=90, log_file=None, host=None, ws=None):
     try:
-        p = subprocess.run(['docker', *args], capture_output=True, text=True, encoding='utf-8', timeout=timeout)
+        command, options = docker_host.command(args, host)
+        if ws is None:
+            p = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', timeout=timeout, **options)
+        else:
+            p = launches.run_process(ws, command, text=True, encoding='utf-8', timeout=timeout,
+                                     show_tray=args[0] == 'build', **options)
     except (OSError, subprocess.TimeoutExpired) as error:
         if log_file:
             output = getattr(error, 'stdout', None) or b''
@@ -88,16 +95,17 @@ def image_key(base):
     return digest.hexdigest()[:24]
 
 
-def prepare_image(cfg):
+def prepare_image(cfg, *, ws=None, host=None):
     from filelock import FileLock
     from .operations import data_root
     key = image_key(cfg['image'])
     tag = 'echo-kit-browser:' + key
     directory = data_root() / 'browser-builds'
     directory.mkdir(parents=True, exist_ok=True)
-    with FileLock(str(directory / (key + '.lock')), timeout=cfg['build_timeout']):
+    command = partial(docker, host=host) if host else docker
+    with launches.launch_lock(FileLock(str(directory / (key + '.lock')), timeout=cfg['build_timeout'])):
         try:
-            docker('image', 'inspect', tag)
+            command('image', 'inspect', tag)
             return tag
         except KitError:
             pass
@@ -105,8 +113,10 @@ def prepare_image(cfg):
             for name, content in build_resources().items():
                 (Path(temp) / name).write_bytes(content)
             try:
-                docker('build', '--build-arg', 'BASE_IMAGE=' + cfg['image'], '-t', tag, temp,
-                       timeout=cfg['build_timeout'], log_file=directory / (key + '.log'))
+                command('build', '--build-arg', 'BASE_IMAGE=' + cfg['image'], '-t', tag, temp,
+                        timeout=cfg['build_timeout'], log_file=directory / (key + '.log'), ws=ws)
+            except launches.EmergencyInterrupted:
+                raise
             except KitError as error:
                 failure = KitError('Browser image build failed; no container started. ' + str(error))
                 failure.details = {'build_log': str(directory / (key + '.log'))}
@@ -223,6 +233,7 @@ def manage(ws, action):
 from .tray import startup_scope, notify
 
 
+@launches.guarded
 @startup_scope
 def _tray_up(ws):
     return _manage_operation(ws, 'up')
@@ -243,6 +254,28 @@ def _manage_operation(ws, action):
         return describe(_manage(ws, action))
 
 
+def start_container(ws, state, command):
+    target = {'id': state['id'], 'owner': ws.identity}
+    if 'docker_host' in state:
+        target['docker_host'] = state['docker_host']
+    with launches.pending(ws, 'browser', browser=target) as attempt:
+        timed_out = False
+        try:
+            command('start', state['id'])
+        except KitError as error:
+            timed_out = isinstance(error.__cause__, subprocess.TimeoutExpired)
+            attempt.keep = timed_out
+            raise
+        finally:
+            try:
+                launches.checkpoint()
+            except launches.EmergencyInterrupted:
+                from .emergency import stop_registered_browser
+                confirmed = stop_registered_browser(target, ws.identity)
+                attempt.keep = timed_out or not confirmed
+                raise
+
+
 def _manage(ws, action):
     cfg = settings(ws) if action == 'up' else ws.cfg.get('browser', {})
     file = ws.state / 'browser.json'
@@ -260,6 +293,8 @@ def _manage(ws, action):
         return result
     if not state and action != 'up':
         return {'status': 'stopped', 'viewer_url': None}
+    host = state.get('docker_host')
+    command = partial(docker, host=host) if docker_host.is_local(host) else docker
     if action == 'up':
         client_version = version('playwright')
         if client_version != PLAYWRIGHT_VERSION:
@@ -269,7 +304,7 @@ def _manage(ws, action):
     if state:
         actual = actual_state(state)
         try:
-            instance = json.loads(docker('inspect', state['id']))[0]
+            instance = json.loads(command('inspect', state['id']))[0]
         except KitError:
             if action == 'status':
                 return {**actual, 'status': 'missing'}
@@ -277,7 +312,7 @@ def _manage(ws, action):
         if instance['Config'].get('Labels', {}).get('echo-kit.workspace') != ws.identity:
             raise KitError('Browser ownership mismatch')
         if action == 'down':
-            docker('rm', '-f', state['id'])
+            command('rm', '-f', state['id'])
             file.unlink()
             return {'status': 'stopped', 'viewer_url': None}
         if action == 'status':
@@ -292,18 +327,26 @@ def _manage(ws, action):
             error.details = {'browser': describe(actual), 'migration_required': True}
             raise error
         if not instance['State']['Running']:
-            docker('start', state['id'])
+            start_container(ws, state, command)
     else:
         assert_ports_free(cfg)
-        image = prepare_image(cfg)
-        args = ['run', '-d', '--init', '--shm-size=512m', '--label', 'echo-kit.workspace=' + ws.identity,
+        try:
+            host = docker_host.selected_host()
+        except (KitError, OSError, subprocess.TimeoutExpired):
+            host = None
+        host = host if docker_host.is_local(host) else None
+        command = partial(docker, host=host) if host else docker
+        image = prepare_image(cfg, ws=ws, host=host)
+        launches.checkpoint()
+        args = ['create', '--init', '--shm-size=512m', '--label', 'echo-kit.workspace=' + ws.identity,
                 '--label', 'echo-kit.browser-runtime=' + str(RUNTIME_VERSION),
                 '-p', f"127.0.0.1:{cfg['port']}:3000", '--add-host', 'host.docker.internal:host-gateway',
                 '-e', 'ECHO_BROWSER_HEADLESS=' + str(cfg['headless']).lower()]
         if not cfg['headless']:
             args += ['-p', f"127.0.0.1:{cfg['viewer_port']}:6080"]
-        cid = docker(*args, image)
+        cid = command(*args, image, ws=ws)
         state = {'id': cid, 'endpoint': f"ws://127.0.0.1:{cfg['port']}/", 'image': image,
+                 'docker_host': host or '',
                  'base_image': cfg['image'], 'runtime_version': RUNTIME_VERSION,
                  'runtime_key': image_key(cfg['image']), 'headless': cfg['headless'], 'port': cfg['port'],
                  'viewer_port': None if cfg['headless'] else cfg['viewer_port'],
@@ -312,18 +355,23 @@ def _manage(ws, action):
         try:
             save(file, state)
         except BaseException:
-            docker('rm', '-f', cid)
+            command('rm', '-f', cid)
             raise
+        start_container(ws, state, command)
     notify(ws)
     deadline = time.monotonic() + cfg['timeout']
     reason = ''
     while time.monotonic() < deadline:
+        launches.checkpoint()
         try:
             connect_check(state['endpoint'])
             if state['viewer_url']:
                 viewer_check(state['viewer_url'])
+            launches.checkpoint()
             open_viewer_once(cfg, state, file)
             return {**actual_state(state), 'status': 'ready'}
+        except launches.EmergencyInterrupted:
+            raise
         except Exception as error:
             reason = str(error)
             time.sleep(.5)

@@ -174,5 +174,13 @@
     "applies_when": "Large operation histories slow queries, acceptance repeatedly rebuilds environments or fails late on client/login prerequisites, or model experiments expand before validating contracts and retry deterministic errors.",
     "steps": "Use operations list --unfinished and named services status for current work. Reuse existing acceptance entrypoints; precheck the actual client's version, connection, target identity and login before a full flow. Separate controlled page replies from real model evaluation. Smoke-test representative samples, explain expected task counts, then report actual requests/retries/wall time/usage. Use ordinary commands for daily work and guides; check run versions and offline switches when diagnosing older behavior. Export to an empty directory and compare/merge project copies.",
     "no_change_when": "History, locks, cleanup and shared/exclusive reservations remain intact, with no persistent index or cross-command cache. Explicit offline stays on the calling package. Existing adapters, project retry settings and agreed formal comparison strategies are not automatically changed. No business project migration, global entry upgrade or exported-Skill overwrite."
+  },
+  {
+    "version": "0.13.0",
+    "changes": "The Windows tray and local emergency stop --all command force-stop owned services, Docker browsers and local tasks across workspaces. The stop cancels earlier queued launches and admits new requests after it finishes.",
+    "configuration": "The installed runtime provides the local command on Windows and Linux. The Windows tray reloads the menu when restarted.",
+    "applies_when": "The user explicitly wants all Kit-owned local resources stopped immediately, for example after the host runs out of memory.",
+    "steps": "Choose the tray emergency action or run echo-kit --json emergency stop --all. Inspect target results and any pending operation IDs. Use normal startup commands for new work after the stop finishes.",
+    "no_change_when": "Ordinary scoped stop and cleanup commands still serve routine shutdown. External services and remote business tasks remain under their original owners."
   }
 ]

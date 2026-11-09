@@ -5,10 +5,12 @@ import subprocess
 import time
 from pathlib import Path
 
+from . import launches
 from .core import KitError, read, save
-from .processes import spawn, fingerprint, stop
+from .processes import spawn, stop
 
 
+@launches.guarded
 def execute(ws, spec, directory, request, secret=None):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -19,18 +21,20 @@ def execute(ws, spec, directory, request, secret=None):
                ECHO_ACTIVE=str(directory.parent / 'active.json'))
     start = time.monotonic()
     with (directory / 'stdout.log').open('wb') as output:
-        p = spawn(ws.command(spec), ws.project(spec.get('project')), env, output, subprocess.PIPE)
-        identity = fingerprint(p.pid)
-        from .operations import track_child
-        track_child(identity)
-        try:
-            p.communicate(json.dumps(secret or {}).encode(), timeout=spec.get('timeout', 60))
-        except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
-            stop(identity)
-            p.wait(timeout=10)
-            if isinstance(error, KeyboardInterrupt):
-                return {'status': 'interrupted', 'checks': [], 'duration': time.monotonic() - start}
-            return {'status': 'failed', 'reason': 'timeout', 'checks': [], 'duration': time.monotonic() - start}
+        def start_adapter():
+            return spawn(ws.command(spec), ws.project(spec.get('project')), env, output, subprocess.PIPE)
+
+        with launches.process(ws, 'task', start_adapter, show_tray=True) as (p, identity):
+            try:
+                p.communicate(json.dumps(secret or {}).encode(), timeout=spec.get('timeout', 60))
+            except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+                launches.checkpoint()
+                if identity:
+                    stop(identity)
+                p.wait(timeout=10)
+                if isinstance(error, KeyboardInterrupt):
+                    return {'status': 'interrupted', 'checks': [], 'duration': time.monotonic() - start}
+                return {'status': 'failed', 'reason': 'timeout', 'checks': [], 'duration': time.monotonic() - start}
     if not result.exists():
         return {'status': 'failed' if p.returncode else 'passed' if spec.get('protocol') == 'command' else 'unverified',
                 'scope': 'command', 'exit_code': p.returncode, 'checks': [], 'duration': time.monotonic() - start}

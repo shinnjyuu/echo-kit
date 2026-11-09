@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 
 from filelock import Timeout
@@ -28,10 +29,12 @@ def parser():
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
                             'docs': ['setup', 'list', 'show', 'check', 'map', 'context', 'read'],
-                            'tray': ['start', 'status', 'stop'], 'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
-        group = top.add_parser(module, **({'help': 'Discover and check shared/private project documents'}
-                                         if module == 'docs' else {'help': 'Windows viewing tray; never stops business resources'}
-                                         if module == 'tray' else {}))
+                            'tray': ['start', 'status', 'stop'], 'emergency': ['stop'],
+                            'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
+        group_help = {'docs': 'Discover and check shared/private project documents',
+                      'tray': 'Windows viewing and emergency stop tray',
+                      'emergency': 'Force-stop Kit-owned resources across all local workspaces'}
+        group = top.add_parser(module, help=group_help.get(module))
         sub = group.add_subparsers(dest='action', required=True)
         for action in actions:
             doc_help = {'setup': 'Create missing entries and ignore rules without overwriting documents',
@@ -75,6 +78,10 @@ def parser():
                     cmd.add_argument('--limit', type=int, default=200, help='Lines per read (1..1000)')
             elif module == 'docs' and action == 'check':
                 cmd.add_argument('--rules', action='store_true', help='Check workspace rule files and direct links independently of docs setup')
+            elif module == 'emergency':
+                cmd.allow_abbrev = False
+                cmd.add_argument('--all', action='store_true', required=True,
+                                 help='Force-stop this user’s services, browsers and local tasks across all Kit workspaces')
             elif module == 'updates':
                 if action == 'notes':
                     cmd.add_argument('--since', help='Read bundled releases newer than this version')
@@ -113,6 +120,9 @@ def parser():
 
 
 def dispatch(args):
+    if args.module == 'emergency':
+        from .emergency import stop_all
+        return stop_all()
     if args.module == 'tray':
         from . import tray
         if args.action == 'status':
@@ -258,12 +268,14 @@ def exit_code(result):
 def main(argv=None):
     raw = list(sys.argv[1:] if argv is None else argv)
     args = None
+    admission = ExitStack()
     try:
         from . import __version__
         expected = os.environ.pop('ECHO_KIT_EXPECTED_VERSION', None)
         if expected and expected != __version__:
             raise KitError('Resolved tool version differs from the prepared version')
-        from . import updates
+        from . import launches, updates
+        forwarded_generation = os.environ.pop(launches.FORWARDED_GENERATION, None)
         route_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
         for name in ('--workspace', '--environment', '--actor'):
             route_parser.add_argument(name)
@@ -277,6 +289,7 @@ def main(argv=None):
             raise KitError('Project version tasks and policies were removed. Use echo-kit directly; '
                            'run updates setup once to migrate an old project entry. Preserve historical records.')
         diagnostic = ((route.module is None and any(x in ('--help', '-h') for x in raw))
+                      or route.module == 'emergency'
                       or (route.module, route.action) in (('runtime', 'info'), ('updates', 'check')))
         discovery = None
         if diagnostic:
@@ -284,6 +297,12 @@ def main(argv=None):
             os.environ.pop('ECHO_KIT_SOURCE_VERSION', None)
             os.environ.pop('ECHO_KIT_UPDATE_ROUTE', None)
         if not diagnostic:
+            can_launch = (route.module in ('auth', 'lab', 'verify')
+                          or (route.module, route.action) in (('services', 'up'), ('services', 'restart'),
+                                                             ('browser', 'up'), ('runs', 'cleanup')))
+            if can_launch and not any(x in ('--help', '-h') for x in raw):
+                inherited = forwarded_generation if os.environ.get(updates.FORWARDED) else None
+                admission.enter_context(launches.scope(inherited))
             child_code, discovery = updates.startup(raw, route.offline)
             if child_code is not None:
                 return child_code
@@ -304,6 +323,8 @@ def main(argv=None):
         code = exit_code(result)
     except KeyboardInterrupt:
         result, code = {'status': 'interrupted'}, 130
+    finally:
+        admission.close()
     if (args is not None and args.json) or (args is None and '--json' in raw):
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args is not None and args.module in ('skills', 'protocol') and args.action == 'show' and code == 0:

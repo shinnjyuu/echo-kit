@@ -291,6 +291,11 @@ def startup(raw, no_network=False):
         env['ECHO_KIT_SOURCE_VERSION'] = __version__
         env[FORWARDED] = target
         env['ECHO_KIT_EXPECTED_VERSION'] = target
+        from . import launches
+        launches.checkpoint()
+        generation = launches.admitted_generation()
+        if generation is not None:
+            env[launches.FORWARDED_GENERATION] = generation
         # No fallback after launching the business command, including nonzero exit.
         return subprocess.call(command + raw, env=env), discovery
     discovery.update(preparation_failures=failures, preparation_failed=bool(failures),

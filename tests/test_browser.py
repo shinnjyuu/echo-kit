@@ -44,13 +44,16 @@ def runtime(ws, monkeypatch):
     from echo_kit.core import read
     calls = []
     monkeypatch.setattr(browser, 'assert_ports_free', lambda cfg: None)
-    monkeypatch.setattr(browser, 'prepare_image', lambda cfg: 'echo-kit-browser:test')
+    monkeypatch.setattr(browser, 'prepare_image', lambda cfg, **kw: 'echo-kit-browser:test')
+    monkeypatch.setattr(browser.docker_host, 'selected_host', lambda: 'test-engine')
     monkeypatch.setattr(browser, 'connect_check', lambda endpoint: None)
     monkeypatch.setattr(browser, 'viewer_check', lambda url: None)
     def docker(*args, **kwargs):
         calls.append(args)
-        if args[0] == 'run':
+        if args[0] == 'create':
             return 'owned-browser'
+        if args[0] == 'start':
+            assert read(ws.state / 'browser.json')['id'] == args[1]
         if args[0] == 'inspect':
             return json.dumps([{'Config': {'Labels': {'echo-kit.workspace': ws.identity}},
                                 'State': {'Status': 'running', 'Running': True}}])
@@ -68,7 +71,7 @@ def test_headed_loopback_readonly_and_open_only_once(ws, runtime, monkeypatch):
     assert first['required_playwright_version'] == second['required_playwright_version'] == browser.PLAYWRIGHT_VERSION
     assert opened == [first['viewer_url']]
     assert second['viewer_open_attempted']
-    launch = next(c for c in runtime if c[0] == 'run')
+    launch = next(c for c in runtime if c[0] == 'create')
     assert '127.0.0.1:19323:3000' in launch and '127.0.0.1:19324:6080' in launch
     status = browser.manage(ws, 'status')
     assert status['viewer_url'] == first['viewer_url']
@@ -83,7 +86,7 @@ def test_headless_has_no_viewer_or_open(ws, runtime, monkeypatch):
     monkeypatch.setattr(browser, 'viewer_check', lambda *a: pytest.fail('headless checked viewer'))
     result = browser.manage(ws, 'up')
     assert result['headless'] and result['viewer_url'] is None
-    launch = next(c for c in runtime if c[0] == 'run')
+    launch = next(c for c in runtime if c[0] == 'create')
     assert launch.count('-p') == 1
     assert 'ECHO_BROWSER_HEADLESS=true' in launch
 

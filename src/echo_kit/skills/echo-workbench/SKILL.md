@@ -27,6 +27,8 @@ Before using a capability, run `echo-kit guide echo-workbench --topic TOPIC` (or
 - `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents) and [directory rules](../references/protocol.md#directory-documentation-and-rules).
 - `updates`: [upgrade adaptation](../references/protocol.md#latest-version-execution).
 
+When the user explicitly requests an emergency stop of every workspace, run `echo-kit --json emergency stop --all` directly. Read the [emergency scope](../references/protocol.md#emergency-stop) and report the stopped, already exited, and unconfirmed targets plus any pending operation IDs. Resume starts only on a new request after the stop finishes.
+
 ## Workflow
 
 Inspect workspace/environment and user intent first. For human acceptance prepare necessary services, give the business frontend URL and brief checks, and report awaiting human acceptance; do not start Docker merely for this. For AI interactive acceptance read browser and use a compatible tool with a persistent owned context; report observed results, not a fabricated run. For repeatable experiments select an existing case and read its required topics. `verify run CASE` prepares only declared services/auth/browser; use services/auth/browser commands independently when appropriate. Start only needed dependencies; a frontend may use remote APIs. Do not automatically run Lab.

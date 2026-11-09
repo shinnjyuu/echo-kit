@@ -1,10 +1,9 @@
 """Normal project authentication via stdin/stdout and OS-backed credential vault."""
 import hashlib
 import json
-import subprocess
-
 import keyring
 
+from . import launches
 from .core import KitError, required_env
 
 
@@ -26,8 +25,8 @@ def secure_backend():
 def invoke(ws, cfg, action, state=None):
     payload = {'action': action, 'account': cfg['account'], 'target': cfg['target'], 'state': state,
                'credentials': {key: required_env(source) for key, source in cfg.get('credentials', {}).items()}}
-    p = subprocess.run(ws.command(cfg), cwd=ws.project(cfg.get('project')), env=ws.env(cfg),
-                       input=json.dumps(payload), capture_output=True, text=True, encoding='utf-8', timeout=cfg.get('timeout', 30))
+    p = launches.run_process(ws, ws.command(cfg), cwd=ws.project(cfg.get('project')), env=ws.env(cfg),
+                             input=json.dumps(payload), text=True, encoding='utf-8', timeout=cfg.get('timeout', 30))
     if p.returncode:
         raise KitError('Authentication adapter failed; private output suppressed')
     try:
@@ -39,6 +38,7 @@ def invoke(ws, cfg, action, state=None):
         raise KitError('Invalid authentication response')
 
 
+@launches.guarded
 def authenticate(ws, name, action='login'):
     from .operations import operation
     cfg, _ = binding(ws, name)
@@ -63,6 +63,7 @@ def _authenticate(ws, name, action='login'):
             if not result.get('valid'):
                 raise KitError('Remote logout not confirmed')
         if persistent and state:
+            launches.checkpoint()
             keyring.delete_password('echo-kit', key)
         return {'valid': False, 'logged_out': True}, None
     result = invoke(ws, cfg, 'check', state) if state else {'valid': False}
@@ -78,6 +79,7 @@ def _authenticate(ws, name, action='login'):
     if state is None:
         raise KitError('Authentication returned no state')
     if persistent:
+        launches.checkpoint()
         try:
             keyring.set_password('echo-kit', key, json.dumps(state))
         except Exception:

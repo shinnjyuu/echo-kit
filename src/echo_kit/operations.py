@@ -9,10 +9,10 @@ from contextvars import ContextVar
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
 
 from .core import KitError, read, save, safe_name
-from .processes import fingerprint, matches
+from .processes import fingerprint, identity_exited, matches
 
 _held = ContextVar('echo_operations', default=())
 
@@ -167,12 +167,14 @@ class Journal:
 
     def acquire(self, ws, action, resources, run_id=None, evidence=None):
         from . import __version__
-        with self.lock():
+        from .launches import admitted_generation, checkpoint, launch_lock
+        with launch_lock(self.lock()):
             blockers = [r for r in self.list(unfinished=True) if r['held'] and any(
                 key in r['held'] and ('exclusive' in (mode, r['held'][key]))
                 for key, mode in resources.items())]
             if blockers:
                 raise ResourceBusy(blockers)
+            checkpoint()
             oid = uuid.uuid4().hex
             record = {'id': oid, 'actor': getattr(ws, 'actor', None), 'workspace': str(ws.root),
                       'tool_version': __version__,
@@ -180,6 +182,8 @@ class Journal:
                       'held': resources.copy(), 'started': time.time(), 'identity': fingerprint(os.getpid()),
                       'run_id': run_id, 'evidence': str(evidence) if evidence else None,
                       'state': 'running', 'events': [{'time': time.time(), 'action': action, 'state': 'started'}]}
+            if admitted_generation() is not None:
+                record['launch_generation'] = admitted_generation()
             save(self.file(oid), record)
             return oid
 
@@ -224,12 +228,46 @@ class Journal:
     def release(self, oid, result='completed', retain=False):
         with self.lock():
             record = read(self.file(oid))
-            retain = retain or record.get('requires_resolution', False) or any(matches(child) for child in record.get('children', []))
+            children = record.get('children', [])
+            live_children = (any(not identity_exited(child) for child in children) if result == 'emergency_interrupted'
+                             else any(matches(child) for child in children))
+            retain = retain or record.get('requires_resolution', False) or live_children
             record.update(state='needs_cleanup' if retain else 'finished', result=result)
             record['events'].append({'time': time.time(), 'action': record['action'], 'state': record['state']})
             if not retain:
                 record.update(held={}, finished=time.time())
             save(self.file(oid), record)
+
+    def release_after_emergency(self, records, uncertain_operations):
+        """Reclaim only proven abandoned reservations with no pending business cleanup."""
+        candidates = [record for record in records if record['held']]
+        if not candidates:
+            return []
+        unresolved = []
+        try:
+            with FileLock(str(self.root / 'journal.lock'), timeout=0):
+                for previous in candidates:
+                    try:
+                        record = self._read(previous['id'])
+                        if not record['held']:
+                            continue
+                        evidence = Path(record['evidence']) if record.get('evidence') else None
+                        if (record['identity'] != previous['identity'] or record.get('requires_resolution')
+                                or record['id'] in uncertain_operations
+                                or (record.get('run_id') and (not evidence or not evidence.is_dir()))
+                                or (evidence and (evidence / 'active.json').exists())
+                                or (record.get('result') != 'emergency_interrupted' and not identity_exited(record['identity']))
+                                or any(not identity_exited(child) for child in record.get('children', []))):
+                            unresolved.append(record)
+                            continue
+                        record.update(state='finished', held={}, finished=time.time(), result='emergency_stopped')
+                        record['events'].append({'time': record['finished'], 'action': 'emergency.stop', 'state': 'finished'})
+                        save(self.file(record['id']), record)
+                    except (KitError, OSError, ValueError, KeyError, TypeError):
+                        unresolved.append(previous)
+        except Timeout:
+            return candidates
+        return unresolved
 
     def resolve(self, oid, note):
         if not note or not note.strip():
@@ -247,7 +285,8 @@ class Journal:
         return record
 
     def claim_cleanup(self, oid, ws, path):
-        with self.lock():
+        from .launches import admitted_generation, launch_lock
+        with launch_lock(self.lock()):
             record = self.show(oid)
             if (canonical_path(record['workspace']) != canonical_path(ws.root) or record['evidence'] != str(path)
                     or record['environment'] != ws.environment):
@@ -256,7 +295,7 @@ class Journal:
                 raise KitError('Operation process is still alive')
             if not record['held']:
                 raise KitError('Operation already released')
-            record.update(identity=fingerprint(os.getpid()), state='running')
+            record.update(identity=fingerprint(os.getpid()), state='running', launch_generation=admitted_generation())
             record['events'].append({'time': time.time(), 'action': 'cleanup', 'state': 'started'})
             save(self.file(oid), record)
 
@@ -296,6 +335,8 @@ def activity(action, state, **details):
 
 @contextmanager
 def operation(ws, action, resources, run_id=None, evidence=None):
+    from .launches import EmergencyInterrupted, checkpoint
+    checkpoint()
     try:
         check_legacy(ws)
     except KitError as error:
@@ -335,12 +376,15 @@ def operation(ws, action, resources, run_id=None, evidence=None):
     result = 'completed'
     try:
         yield oid
+    except EmergencyInterrupted:
+        result = 'emergency_interrupted'
+        raise
     except BaseException:
         result = 'failed'
         raise
     finally:
         _held.reset(token)
         active = evidence is not None and (Path(evidence) / 'active.json').exists()
-        if evidence:
+        if evidence and result != 'emergency_interrupted':
             result = read(Path(evidence) / 'run.json', {}).get('status', result)
         journal.release(oid, result, retain=active)

@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from contextvars import copy_context
 
+from .launches import EmergencyInterrupted, checkpoint
 from .core import KitError, read, safe_name
 from .operations import service_names, canonical_path, activity, Journal, service_resources
 
@@ -118,14 +119,17 @@ class Startup:
         return result
 
     def run(self):
+        checkpoint()
         pending = list(self.names)
         futures = {}
         failed = interrupted = False
+        emergency = None
         if not self.names:
             return self.manager.status(probe=False)
         pool = ThreadPoolExecutor(max_workers=self.jobs)
         try:
             while pending or futures:
+                checkpoint()
                 if not failed:
                     for name in pending[:]:
                         if len(futures) >= self.jobs:
@@ -141,6 +145,9 @@ class Startup:
                     name = futures.pop(future)
                     self.results[name] = future.result()
                     failed |= self.results[name]['result'] == 'failed'
+        except EmergencyInterrupted as error:
+            emergency = error
+            self.cancel.set()
         except KeyboardInterrupt:
             interrupted = failed = True
             self.cancel.set()
@@ -156,6 +163,9 @@ class Startup:
                     interrupted = failed = True
                     self.cancel.set()
             pool.shutdown(wait=True)
+        if emergency:
+            raise emergency
+        checkpoint()
         for name in pending:
             self.results[name] = {'result': 'not_started', 'reason': 'Startup interrupted' if interrupted else 'Another service failed',
                                   'timings': {'queue': time.monotonic() - self.started, 'build': 0., 'start': 0., 'ready': 0., 'total': time.monotonic() - self.started}}

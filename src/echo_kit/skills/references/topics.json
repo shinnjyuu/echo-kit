@@ -32,6 +32,7 @@
       "Parallel service startup",
       "Shared operations (local user)",
       "Shared service instances",
+      "Emergency stop",
       "Runtime debugging"
     ],
     "references": [
@@ -46,6 +47,7 @@
       "Visible browser",
       "Current guides and release notes",
       "Windows tray viewer (0.8.0+)",
+      "Emergency stop",
       "Runtime debugging"
     ],
     "references": [

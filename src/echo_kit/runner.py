@@ -1,6 +1,8 @@
 import time
 import uuid
+from contextlib import contextmanager
 
+from . import launches
 from .adapter import execute
 from .auth import authenticate
 from .browser import manage
@@ -10,10 +12,11 @@ from .services import Services
 from .tray import startup_scope
 
 
+@launches.guarded
 def cleanup_run(ws, path):
     from filelock import FileLock
     from .operations import Journal, bind_operation
-    with FileLock(str(path / 'cleanup.lock'), timeout=1):
+    with launches.launch_lock(FileLock(str(path / 'cleanup.lock'), timeout=1)):
         record = read(path / 'run.json')
         if record['environment'] != ws.environment:
             raise KitError('Cleanup environment differs from the original run')
@@ -42,6 +45,7 @@ def cleanup_run(ws, path):
             attempt = path / ('cleanup-' + uuid.uuid4().hex[:10])
             with bind_operation(oid):
                 result = execute(ws, cleanup, attempt, {'run_id': record['id'], 'active': read(path / 'active.json')})
+            launches.checkpoint()
             confirmed = result.get('status') == 'passed' and result.get('terminal_confirmed') is True
             if not confirmed:
                 raise KitError('Cleanup not confirmed; active record retained')
@@ -71,7 +75,24 @@ def verdict(value, required):
     return 'passed'
 
 
-@startup_scope(verify_only=True)
+@contextmanager
+def interrupted_run(path, record, case):
+    try:
+        yield
+    except launches.EmergencyInterrupted:
+        active = path / 'active.json'
+        phase = read(active, {}).get('phase')
+        if phase == 'preparing' or (not case.get('creates_tasks') and not case.get('cleanup')):
+            active.unlink(missing_ok=True)
+        record.update(status='interrupted', reason='emergency_stop', finished=time.time())
+        if active.exists():
+            record['cleanup'] = 'unconfirmed'
+        save(path / 'run.json', record)
+        raise
+
+
+@launches.guarded
+@startup_scope
 def run(ws, name, kind='lab', variant='baseline', repeat=1):
     if repeat < 1:
         raise KitError('repeat must be positive')
@@ -98,19 +119,19 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
         resources['case:' + str(ws.root) + ':' + ws.environment + ':' + name] = 'exclusive'
     outputs = []
     for iteration in range(repeat):
+        launches.checkpoint()
         inputs = merge(case.get('inputs', {}), case.get('variants', {}).get(variant, {}))
         path, record = new_run(ws, name, kind, inputs)
         record.update(variant=variant, iteration=iteration + 1, mode=case.get('mode', 'unspecified'))
         if kind == 'verify':
             reservation = manager.reservation(names, 'verify.run', access, record['id'], path, resources)
         else:
-            from contextlib import contextmanager
             @contextmanager
             def lab_reservation():
                 with operation(ws, 'lab.run', {**service_resources(ws, names, builds=False, access=access), **resources}, record['id'], path) as oid:
                     yield oid, lambda: None
             reservation = lab_reservation()
-        with reservation as (oid, prepared):
+        with reservation as (oid, prepared), interrupted_run(path, record, case):
             record['operation_id'] = oid
             from .operations import Journal
             record['resources'] = Journal().show(oid)['held']
@@ -144,6 +165,7 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                 if kind != 'verify':
                     record['services'] = manager.status(probe=False, names=names)
                 prepared()
+                launches.checkpoint()
                 record['resources'] = Journal().show(oid)['held']
                 save(path / 'run.json', record)
                 save(path / 'active.json', {'run_id': record['id'], 'phase': 'executing'})
@@ -152,6 +174,7 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                            'browser': browser, 'active_file': str(path / 'active.json')}
                 event(path, record, 'adapter', 'running')
                 value = execute(ws, case, path / 'adapter', request, {'auth': state})
+                launches.checkpoint()
                 record.update({k: v for k, v in value.items() if k in {'status', 'checks', 'metrics', 'duration', 'scope', 'reason', 'exit_code'}})
                 record['artifacts'] = ['adapter/' + x for x in value.get('artifacts', [])]
                 record['status'] = verdict(record, case.get('required_checks', []))
@@ -175,6 +198,8 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                     record['reason'] = 'Business terminal state missing'
                 else:
                     (path / 'active.json').unlink(missing_ok=True)
+            except launches.EmergencyInterrupted:
+                raise
             except KeyboardInterrupt:
                 record.update(status='interrupted', reason='Interrupted; inspect active state')
             except Exception as error:
@@ -185,12 +210,15 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                 if read(path / 'active.json', {}).get('phase') == 'preparing':
                     (path / 'active.json').unlink(missing_ok=True)
             # All abnormal exits need a cleanup decision, including malformed results.
+            launches.checkpoint()
             if (path / 'active.json').exists() and record.get('cleanup') != 'unconfirmed':
                 if case.get('cleanup'):
                     try:
                         cleanup = execute(ws, case['cleanup'], path / 'cleanup-error',
                                           {'run_id': record['id'], 'active': read(path / 'active.json')}, {'auth': state})
                         confirmed = cleanup.get('status') == 'passed' and cleanup.get('terminal_confirmed') is True
+                    except launches.EmergencyInterrupted:
+                        raise
                     except Exception:
                         confirmed = False
                     record['cleanup'] = 'confirmed' if confirmed else 'unconfirmed'
@@ -201,6 +229,7 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                     (path / 'active.json').unlink()
                 else:
                     record['cleanup'] = 'unconfirmed'
+            launches.checkpoint()
             record['finished'] = time.time()
             save(path / 'run.json', record)
             report(path)

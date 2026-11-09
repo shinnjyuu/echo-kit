@@ -6,8 +6,9 @@ import hashlib
 from contextlib import nullcontext, contextmanager, ExitStack
 from pathlib import Path
 
+from . import launches
 from .core import KitError, read, save, safe_name, versions
-from .processes import fingerprint, matches, spawn, stop
+from .processes import matches, spawn, stop
 from .tray import startup_scope, notify
 
 
@@ -59,6 +60,7 @@ def artifact_snapshot(ws, spec):
 
 
 def healthy(ws, spec):
+    launches.checkpoint()
     check = spec.get('ready', {})
     try:
         if 'url' in check:
@@ -68,8 +70,13 @@ def healthy(ws, spec):
             with socket.create_connection((check.get('host', '127.0.0.1'), check['port']), timeout=1):
                 return True
         if 'command' in check:
-            p = subprocess.run(ws.command(check), cwd=ws.project(spec.get('project')), env=ws.env(check),
-                               capture_output=True, timeout=check.get('timeout', 3))
+            command = ws.command(check)
+            options = {'cwd': ws.project(spec.get('project')), 'env': ws.env(check),
+                       'timeout': check.get('timeout', 3)}
+            if launches.admitted_generation() is None:
+                p = subprocess.run(command, capture_output=True, **options)
+            else:
+                p = launches.run_process(ws, command, journal=False, **options)
             return p.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -151,7 +158,8 @@ class Services:
             for identity in sorted({key(self.ws, n) for n in names
                                     if self.ws.cfg['services'][n].get('mode', 'managed') != 'external'}):
                 try:
-                    startup_locks.enter_context(FileLock(str(registry.root / (identity + '.startup.lock')), timeout=30))
+                    lock = FileLock(str(registry.root / (identity + '.startup.lock')), timeout=30)
+                    startup_locks.enter_context(launches.launch_lock(lock))
                 except Timeout as cause:
                     error = KitError('Shared service startup wait timed out; inspect operations list')
                     if evidence:
@@ -195,6 +203,7 @@ class Services:
         except (KitError, OSError, subprocess.TimeoutExpired):
             return 'unknown'
 
+    @launches.guarded
     @startup_scope
     def up(self, names, jobs=None):
         names, jobs = self._plan(names, jobs)
@@ -203,6 +212,7 @@ class Services:
             prepared()
             return result
 
+    @launches.guarded
     @startup_scope
     def restart(self, names, jobs=None):
         selected = list(names) if names else self.started_here()
@@ -222,6 +232,7 @@ class Services:
         return Startup(self, names, jobs).run()
 
     def _up(self, name, cancel, timings, build_lock):
+        launches.checkpoint()
         safe_name(name)
         specs = self.ws.cfg.get('services', {})
         if name not in specs:
@@ -259,6 +270,7 @@ class Services:
         return 'reused' if own else 'ready'
 
     def _launch(self, name, spec, state, own, cancel, timings):
+        launches.checkpoint()
         if not own:
             port = spec.get('port', spec.get('ready', {}).get('port'))
             if port:
@@ -276,23 +288,27 @@ class Services:
                     log = self.ws.state / 'logs' / (name + '-prepare.log')
                     log.parent.mkdir(parents=True, exist_ok=True)
                     with log.open('ab') as handle:
-                        p = spawn(self.ws.command(prepare), self.ws.project(spec.get('project')), self.ws.env(prepare), handle)
-                        identity = fingerprint(p.pid)
-                        from .operations import track_child
-                        track_child(identity)
-                        try:
-                            deadline = time.monotonic() + prepare.get('timeout', 120)
-                            while p.poll() is None:
-                                if cancel.wait(.05):
-                                    raise KeyboardInterrupt
-                                if time.monotonic() >= deadline:
-                                    raise subprocess.TimeoutExpired(p.args, prepare.get('timeout', 120))
-                        except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
-                            stop(identity)
-                            p.wait(timeout=10)
-                            if isinstance(error, KeyboardInterrupt):
-                                raise
-                            raise KitError('Prepare interrupted or timed out: ' + name)
+                        def build():
+                            return spawn(self.ws.command(prepare), self.ws.project(spec.get('project')),
+                                         self.ws.env(prepare), handle)
+
+                        with launches.process(self.ws, 'task', build, show_tray=True) as (p, identity):
+                            try:
+                                deadline = time.monotonic() + prepare.get('timeout', 120)
+                                while p.poll() is None:
+                                    launches.checkpoint()
+                                    if cancel.wait(.05):
+                                        launches.checkpoint()
+                                        raise KeyboardInterrupt
+                                    if time.monotonic() >= deadline:
+                                        raise subprocess.TimeoutExpired(p.args, prepare.get('timeout', 120))
+                            except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+                                if identity:
+                                    stop(identity)
+                                p.wait(timeout=10)
+                                if isinstance(error, KeyboardInterrupt):
+                                    raise
+                                raise KitError('Prepare interrupted or timed out: ' + name) from error
                     if p.returncode:
                         raise KitError('Prepare command failed: ' + name)
                     if source_snapshot(self.ws.project(spec.get('project'))) != before:
@@ -306,25 +322,31 @@ class Services:
                 log = self.ws.state / 'logs' / (name + '.log')
                 log.parent.mkdir(parents=True, exist_ok=True)
                 with log.open('ab') as handle:
-                    process = spawn(self.ws.command(spec), self.ws.project(spec.get('project')), self.ws.env(spec), handle)
-                try:
-                    identity = fingerprint(process.pid)
-                except Exception:
-                    raise KitError('Service exited at startup: ' + name)
-                try:
-                    state[name] = {'identity': identity, 'log': str(log), 'started': time.time(), 'versions': versions(self.ws),
-                                   'source': before, 'artifacts': artifacts,
-                                   'version_scope': 'build_artifact' if artifacts else 'source_or_hot_reload_unpinned'}
-                    self._save_item(name, state[name])
-                except BaseException:
-                    from .operations import track_child
-                    track_child(identity)
-                    stop(identity)
-                    raise
+                    def start():
+                        return spawn(self.ws.command(spec), self.ws.project(spec.get('project')),
+                                     self.ws.env(spec), handle)
+
+                    with launches.process(self.ws, 'service', start, journal=False) as (_, identity):
+                        if identity is None:
+                            raise KitError('Service exited at startup: ' + name)
+                        try:
+                            state[name] = {'identity': identity, 'log': str(log), 'started': time.time(),
+                                           'versions': versions(self.ws), 'source': before, 'artifacts': artifacts,
+                                           'version_scope': 'build_artifact' if artifacts else 'source_or_hot_reload_unpinned'}
+                            launches.checkpoint()
+                            self._save_item(name, state[name])
+                        except launches.EmergencyInterrupted:
+                            raise
+                        except BaseException:
+                            from .operations import track_child
+                            track_child(identity)
+                            stop(identity)
+                            raise
 
     def _wait_ready(self, name, spec, state, cancel):
         deadline = time.monotonic() + spec.get('timeout', 30)
         while time.monotonic() < deadline:
+            launches.checkpoint()
             if cancel.is_set():
                 raise KitError('Startup interrupted')
             if not matches(state[name]['identity']):

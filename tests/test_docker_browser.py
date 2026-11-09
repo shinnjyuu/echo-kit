@@ -216,6 +216,7 @@ def test_real_headed_viewer_readonly_isolation_and_supervision(ws, tmp_path):
 
 def test_real_headless_no_viewer_and_release_ports(ws):
     from playwright.sync_api import sync_playwright
+    from echo_kit import emergency
     import socket
     ws.cfg['browser']['headless'] = True
     result = browser.manage(ws, 'up')
@@ -228,6 +229,9 @@ def test_real_headless_no_viewer_and_release_ports(ws):
         page = context.new_page()
         page.set_content('<h1>Headless works</h1>')
         assert page.locator('h1').inner_text() == 'Headless works'
+    assert emergency.stop_all()['counts']['stopped'] == 1
+    assert browser.manage(ws, 'status')['status'] == 'exited'
+    assert browser.manage(ws, 'up')['id'] == result['id']
     browser.manage(ws, 'down')
     assert browser.manage(ws, 'status')['status'] == 'stopped'
     for port in (ws.cfg['browser']['port'], ws.cfg['browser']['viewer_port']):

@@ -141,9 +141,11 @@ Project documents hold startup commands, cases, authentication workflows, team r
 
 ## Windows tray viewer (0.8.0+)
 
-On an interactive Windows desktop, starting/reusing managed services or a managed browser (including Verify preparation) automatically offers a per-session tray entry. Close a noVNC tab freely, then choose the project and Open debugging viewer from the tray to view the same experiment again; do not ask AI to restart it. The tray checks process identity and container ownership only, not application readiness, and never executes project health commands. It provides no stop/restart/cleanup actions for business resources.
+On an interactive Windows desktop, Kit opens a per-session tray while managed services, browsers or local builds and experiments run. Choose the project and Open debugging viewer to reopen the same noVNC view. The tray shows process and container state.
 
 `echo-kit tray start` registers the current workspace, including existing owned resources. `echo-kit --json tray status` and `echo-kit tray stop` need no workspace. Stop/Exit closes only the tray. A later startup operation can restore it, but the same operation cannot override a manual dismissal. After all resources are confirmed stopped, the tray exits after a 30-second grace; unknown states retain it. External instances are excluded; headless/legacy browsers have no viewer. CI, noninteractive desktops and `ECHO_KIT_TRAY=0` disable automatic startup. Other platforms keep existing CLI/viewer URLs. No boot service or service watchdog is installed. A restrictive Windows Job can prevent independent UI startup: report the notice and retain the viewer link, without failing the experiment. Windows may place the icon in its overflow area.
+
+When memory is low, choose **急停所有工作区** (Emergency stop all workspaces) from the Windows tray menu. One click force-stops this user's local managed services, browsers and tasks. On Windows or Linux, ask the agent explicitly to run `echo-kit emergency stop --all`. The installed command runs locally and skips business saving and cleanup. It cancels older queued starts and admits new launches once it finishes. Restart the tray after installing the new version. See the [emergency stop protocol](docs/protocol.md#emergency-stop).
 
 ## Prepare test identities during onboarding
 

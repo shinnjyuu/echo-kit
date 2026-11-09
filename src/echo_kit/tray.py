@@ -1,4 +1,4 @@
-"""Optional Windows viewing UI. No business commands or resource mutations."""
+"""Optional Windows viewing and emergency stop UI."""
 import ctypes
 import functools
 import hashlib
@@ -23,7 +23,7 @@ from .core import KitError, read, save, safe_name
 from .operations import data_root
 from .processes import fingerprint, matches
 
-PROTOCOL = 2
+PROTOCOL = 3
 POLL_SECONDS = 5
 IDLE_SECONDS = 30
 _scope = ContextVar('tray_start_scope', default=None)
@@ -164,6 +164,11 @@ def snapshot():
     if shared:
         rows.append({'key': 'shared-services', 'kind': 'shared_services', 'name': '共享微服务',
                      'environment': '', 'workspace': '', 'services': shared, 'browser': None})
+    tasks = [{'name': Path(op['workspace']).name + ' · ' + op['action'], 'state': 'running'}
+             for op in operations if op['children_alive']]
+    if tasks:
+        rows.append({'key': 'local-tasks', 'kind': 'tasks', 'name': '本地任务',
+                     'environment': '', 'workspace': '', 'services': tasks, 'browser': None})
     return rows
 
 
@@ -266,12 +271,16 @@ def notify(ws):
     scope = _scope.get()
     if scope is None or scope.get('unavailable'):
         return
+    from .launches import EmergencyInterrupted, checkpoint
     try:
+        checkpoint()
         if not enabled():
             return
         result = start(ws, scope['started'])
         if result['status'] != 'passed':
             raise KitError(str(result))
+    except EmergencyInterrupted:
+        return
     except Exception:
         # Optional UI failure must not alter a service/Verify verdict.
         scope['unavailable'] = True
@@ -337,6 +346,7 @@ def serve(token):
     directory = root()
     with FileLock(str(directory / 'daemon.lock'), timeout=0):
         done, refresh = threading.Event(), threading.Event()
+        urgent, stopping = threading.Event(), threading.Event()
         rows = []
         pending = []
         guard = threading.Lock()
@@ -354,6 +364,36 @@ def serve(token):
                     pending.append(key)
                 refresh.set()
             return callback
+
+        def request_emergency(*unused):
+            with guard:
+                if not done.is_set() and not stopping.is_set():
+                    stopping.set()
+                    urgent.set()
+
+        def emergency_worker():
+            from .emergency import stop_all
+            while True:
+                urgent.wait()
+                urgent.clear()
+                if done.is_set():
+                    return
+                try:
+                    result = stop_all()
+                    counts = result.get('counts')
+                    if counts is None:
+                        message = '另一处急停正在执行。'
+                    else:
+                        message = (f"已停止 {counts['stopped']}，原已退出 {counts['already_exited']}，"
+                                   f"未确认 {counts['unconfirmed']}。")
+                        if result['pending_operations']:
+                            message += f"有 {len(result['pending_operations'])} 条操作待处理。"
+                    icon.notify(message, 'Echo Kit 急停')
+                except Exception:
+                    icon.notify('急停结果未确认。可用命令查看各目标结果。', 'Echo Kit 急停')
+                finally:
+                    stopping.clear()
+                    refresh.set()
 
         def menu_items():
             with guard:
@@ -376,6 +416,10 @@ def serve(token):
                         services.append(pystray.MenuItem(service['name'] + ': ' + text[service['state']], pystray.Menu(*details)))
                     items.append(pystray.MenuItem('共享微服务', pystray.Menu(*services)))
                     continue
+                if row.get('kind') == 'tasks':
+                    tasks = [pystray.MenuItem(task['name'], None, enabled=False) for task in row['services']]
+                    items.append(pystray.MenuItem(row['name'], pystray.Menu(*tasks)))
+                    continue
                 label = row['name'] + ' [' + row['environment'] + ']'
                 if sum(r['name'] == row['name'] and r['environment'] == row['environment'] for r in current) > 1:
                     label += ' — ' + row['workspace']
@@ -389,6 +433,8 @@ def serve(token):
                 items.append(pystray.MenuItem(label, pystray.Menu(*children)))
             if not items:
                 items.append(pystray.MenuItem('暂无运行中的托管资源', None, enabled=False))
+            items.append(pystray.Menu.SEPARATOR)
+            items.append(pystray.MenuItem('急停所有工作区', request_emergency, enabled=not stopping.is_set()))
             items.append(pystray.MenuItem('退出托盘（保留服务）', quit_ui))
             return items
 
@@ -412,12 +458,15 @@ def serve(token):
                             except Exception as error:
                                 icon.notify(str(error), 'Echo Kit')
                         icon.update_menu()
-                        if idle.expired(current, time.monotonic()):
+                        if not stopping.is_set() and idle.expired(current, time.monotonic()):
                             # Serialize idle exit with start() so resource registration cannot be lost.
                             with FileLock(str(directory / 'start.lock'), timeout=5):
                                 if not has_resources(snapshot(), include_unknown=True):
-                                    save(directory / 'instance.json', {})
-                                    break
+                                    with guard:
+                                        if not stopping.is_set():
+                                            done.set()
+                                            save(directory / 'instance.json', {})
+                                            break
                     except Exception:
                         traceback.print_exc()
                         idle.since = None
@@ -431,17 +480,22 @@ def serve(token):
             icon.visible = True
             save(directory / 'instance.json', {'protocol': PROTOCOL, 'token': token,
                                                'identity': fingerprint(os.getpid()), 'version': __version__})
+            urgent_thread.start()
             thread.start()
 
         with files('echo_kit').joinpath('resources', 'tray.png').open('rb') as resource:
             image = Image.open(resource).copy()
         icon = pystray.Icon('echo-kit', image, 'Echo Kit 调试', pystray.Menu(menu_items))
         thread = threading.Thread(target=worker, name='tray-state', daemon=True)
+        urgent_thread = threading.Thread(target=emergency_worker, name='tray-emergency', daemon=True)
         try:
             icon.run(setup=ready)
         finally:
             done.set()
             refresh.set()
+            urgent.set()
+            if urgent_thread.is_alive():
+                urgent_thread.join(timeout=5)
             if thread.is_alive():
                 thread.join(timeout=5)
             current = read(directory / 'instance.json', {})
