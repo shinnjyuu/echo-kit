@@ -23,7 +23,7 @@ def parser():
     p.add_argument('--json', action='store_true')
     top = p.add_subparsers(dest='module', required=True)
     for module, actions in {'workspace': ['init', 'check'], 'services': ['up', 'status', 'down', 'restart', 'logs'],
-                            'auth': ['login', 'check', 'logout'], 'browser': ['up', 'status', 'down'],
+                            'auth': ['login', 'check', 'logout'], 'browser': ['up', 'status', 'down', 'observe'],
                             'cases': ['list', 'show'], 'lab': ['run', 'compare'], 'verify': ['run'],
                             'operations': ['list', 'show', 'resolve'],
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
@@ -53,7 +53,13 @@ def parser():
                  'browser up opens it once in the system browser (disable with browser.auto_open=false; CI defaults off). '
                  'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
                 if module == 'browser' else {}))
-            if module in ('cases', 'runs') and action == 'list':
+            if module == 'browser' and action == 'observe':
+                cmd.add_argument('--url', required=True, help='Initial HTTP(S) URL reachable from the managed browser')
+                cmd.add_argument('--service', action='append', default=[], help='Prepare and share this service and its dependencies')
+                cmd.add_argument('--auth', help='Existing authentication adapter name')
+                cmd.add_argument('--adapter', help='Project Python script calling echo_kit.observation.serve_observer')
+                cmd.add_argument('--timeout-ms', type=int, default=10000, help='Per-capture readiness timeout (default 10000)')
+            elif module in ('cases', 'runs') and action == 'list':
                 cmd.add_argument('--limit', type=int, default=20, help='Page size (1..200; default 20)')
                 cmd.add_argument('--offset', type=int, default=0, help='Nonnegative page offset')
                 if module == 'cases':
@@ -268,6 +274,7 @@ def exit_code(result):
 def main(argv=None):
     raw = list(sys.argv[1:] if argv is None else argv)
     args = None
+    route = None
     admission = ExitStack()
     try:
         from . import __version__
@@ -299,7 +306,7 @@ def main(argv=None):
         if not diagnostic:
             can_launch = (route.module in ('auth', 'lab', 'verify')
                           or (route.module, route.action) in (('services', 'up'), ('services', 'restart'),
-                                                             ('browser', 'up'), ('runs', 'cleanup')))
+                                                             ('browser', 'up'), ('browser', 'observe'), ('runs', 'cleanup')))
             if can_launch and not any(x in ('--help', '-h') for x in raw):
                 inherited = forwarded_generation if os.environ.get(updates.FORWARDED) else None
                 admission.enter_context(launches.scope(inherited))
@@ -316,6 +323,9 @@ def main(argv=None):
                       "https://pypi.org/simple shinnjyuu-echo-kit", file=sys.stderr)
             raise
         args._update = discovery
+        if (args.module, getattr(args, 'action', None)) == ('browser', 'observe'):
+            from .observer_cli import observe
+            return observe(args)
         result = dispatch(args)
         code = exit_code(result)
     except (KitError, Timeout, OSError, ValueError, KeyError) as error:
@@ -325,7 +335,11 @@ def main(argv=None):
         result, code = {'status': 'interrupted'}, 130
     finally:
         admission.close()
-    if (args is not None and args.json) or (args is None and '--json' in raw):
+    output_args = args or route
+    streaming = (getattr(output_args, 'module', None), getattr(output_args, 'action', None)) == ('browser', 'observe')
+    if streaming:
+        print(json.dumps(result, ensure_ascii=False, separators=(',', ':')))
+    elif (args is not None and args.json) or (args is None and '--json' in raw):
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args is not None and args.module in ('skills', 'protocol') and args.action == 'show' and code == 0:
         print(f"Echo Kit {result['version']} · {result['path']}\n")

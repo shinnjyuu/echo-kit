@@ -182,5 +182,13 @@
     "applies_when": "The user explicitly wants all Kit-owned local resources stopped immediately, for example after the host runs out of memory.",
     "steps": "Choose the tray emergency action or run echo-kit --json emergency stop --all. Inspect target results and any pending operation IDs. Use normal startup commands for new work after the stop finishes.",
     "no_change_when": "Ordinary scoped stop and cleanup commands still serve routine shutdown. External services and remote business tasks remain under their original owners."
+  },
+  {
+    "version": "0.14.0",
+    "changes": "browser observe provides a persistent JSON-line visual session with fresh screenshots, bounded diagnostics and explicit navigation/reload. Observations preserve the owned page and support optional project Python callbacks.",
+    "configuration": "Use --url with a browser-reachable address, repeat --service for required services, and optionally select existing --auth and a --adapter Python script. Readiness defaults to 10000 ms. No new workspace configuration is required.",
+    "applies_when": "An agent repeatedly checks a page's appearance, including a logged-in business page with dialogs or unsaved state.",
+    "steps": "Read the browser topic. Open browser observe once, retain its process, and send observe/navigate/reload/close requests with fresh string IDs. Show only images returned by the matching response. Project adapters call serve_observer for preparation, readiness and diagnostics. Close at the end and inspect uncertain operations. Export resources into an empty directory to obtain the optional Node client.",
+    "no_change_when": "Human acceptance still uses business frontend URLs. Business correctness, model quality and release artifacts retain their required checks. Existing case and adapter configurations remain usable. Project login, mocks and animation choices remain explicit. This release does not migrate business projects or overwrite exported resources."
   }
 ]

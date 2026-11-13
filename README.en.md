@@ -99,6 +99,8 @@ Since 0.3.0, Echo Kit distinguishes team-shared documents from personal, private
 
 ## Further reading
 
+Use `echo-kit browser observe --url URL --service web` for repeated visual feedback on a page. The persistent session keeps its own login, dialogs and unsaved inputs, returning fresh screenshots and bounded layout diagnostics. Reload and navigation are explicit. Simple pages use the built-in worker; business pages can provide a small project adapter. See [fast visual observation](src/echo_kit/skills/references/visual-observation.md).
+
 The public protocol is in English; the other guides below are currently in Chinese.
 
 - [AI onboarding guide](README.ai.md): from a fresh installation to project setup, also useful for developers configuring the tool manually.

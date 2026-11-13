@@ -29,6 +29,8 @@ Before using a capability, run `echo-kit guide echo-init --topic TOPIC` (or read
 
 ## Workflow
 
+When onboarding needs rapid visual iteration, use the browser topic's [visual observation entry](../references/visual-observation.md). Simple pages use the built-in CLI. Only add a project adapter for actual login, state preparation or readiness needs, preserving the project's existing workflows.
+
 Use only for requested onboarding. Inspect existing project README, build/test/CI/startup files and existing configuration first; reuse project conventions and ask only about unresolved target, authentication or scope. Initialize with `echo-kit --workspace PATH workspace init` only if absent. Define only requested capabilities; do not regenerate team adapters.
 
 Read configuration before registering capabilities; read cases only when registering repeatable experiments. Do not generate browser scripts or isolated APIs/proxies/databases by default just to use Kit. Reuse existing startup, login and acceptance entrypoints; add independent fixtures only when necessary. Prepare only the entrypoints required by the selected acceptance approach. Before a full page flow, use its actual client for minimal connection, target identity and necessary login checks; see browser for required_playwright_version. Fix one failing prerequisite before repeating the flow. For requested authenticated cases read auth, inspect reusable identity preparation and verify login plus required role/tenant; anonymous cases skip this. Prepare identities explicitly, never as an implicit login/startup side effect. Report not-needed, reused, created-and-verified or still-needs-preparation.

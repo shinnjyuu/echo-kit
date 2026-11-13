@@ -52,6 +52,7 @@
     ],
     "references": [
       "references/interactive-session.md",
+      "references/visual-observation.md",
       "references/runtime-debugging.md"
     ]
   },

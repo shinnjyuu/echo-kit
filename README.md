@@ -93,6 +93,8 @@ Echo Kit 0.3.0 起支持区分团队共享文档与个人私有文档：共享�
 
 ## 进一步阅读
 
+修改页面后，可以用 `echo-kit browser observe --url URL --service web` 保持一个观察会话，连续取得当前画面和简短布局诊断。默认保留登录、弹窗和未保存输入，按需刷新或导航。简单页面直接使用，复杂业务页面通过小型项目适配器准备状态。详见[快速视觉观察](src/echo_kit/skills/references/visual-observation.md)。
+
 - [AI 接入指南](README.ai.md)：从未安装到完成项目接入，也适合希望手动配置的开发者。
 - [独立演示](docs/demo.md)：用示例项目体验实验、API 验收和浏览器验收。
 - [公开协议](docs/protocol.md)：编写项目适配器、配置认证和管理运行结果。

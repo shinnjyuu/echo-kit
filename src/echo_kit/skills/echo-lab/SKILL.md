@@ -29,6 +29,8 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 
 ## Workflow
 
+Use the browser topic's [visual observation entry](../references/visual-observation.md) for appearance exploration between repeatable experiments. Reuse its current page and matching images; experimental assertions and business/model conclusions still use their declared evidence.
+
 Lab is for repeatable experiments, not the default for every acceptance request. Use the project's existing case/interpreter. State the hypothesis and required evidence; choose the smallest experiment that answers it. Lab does not automatically prepare services, authentication or browsers, and does not automatically invoke Workbench.
 
 For model experiments read cases / [economical model experiments](../references/protocol.md#economical-model-experiments). Start with a few representative samples to validate contract, units, references and saved results before expanding versions or rounds; state expected task count first. Distinguish transient failures from confirmed structural errors; stop and diagnose samples that the same input cannot repair. Keep project retries and agreed formal strategies unless an authorized change is made. Report actual requests, retries, wall time and model usage (unknown when unavailable), retaining incomplete samples and strategy changes. Reuse existing environments; do not default to a large matrix or new fixtures.

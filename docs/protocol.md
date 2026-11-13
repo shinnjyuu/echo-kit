@@ -412,6 +412,10 @@ Includes reject missing/invalid files, absolute/wildcard/outside paths, resolved
 
 ## Acceptance approaches
 
+For repeated appearance checks, use `echo-kit browser observe --url URL --service NAME`. This persistent JSON-line command prepares selected services, existing authentication and a managed Docker browser once, then preserves its owned page between observations. It supports observe/navigate/reload/close, optional project Python adapters and request-matched image receipts. Observe keeps page state by default. Navigation, refresh, animations and simulated data are explicit choices. Read the browser topic or exported `references/visual-observation.md` for callbacks, protocol, host clients and lifecycle.
+
+Observation workers participate in existing shared service/browser reservations, task tracking and emergency admission generations. EOF/close releases confirmed local reservations after saving the session trace. Unconfirmed cleanup or pending business work retains evidence. Images and receipts belong in ignored `.echo-kit/observations/`; replies use operation/observation IDs. Capture success establishes the observed image and diagnostics. Business correctness, model quality and release output require their task-specific checks. Default replies omit secrets, form values, full DOM and response bodies.
+
 Choose from user intent, not a mandatory tier prompt. Human acceptance prepares needed services and provides the business frontend URL and short check points; until feedback, report awaiting human acceptance. noVNC is read-only and is not the human testing page. Do not start a Docker browser merely for human acceptance.
 
 Using Echo Kit does not itself require a new acceptance script or isolated system. First inspect and reuse the project's existing startup, login and acceptance entrypoints. Add fixtures only when independent data and repeatable verification are actually needed; do not rebuild an API, proxy, login flow or database by default. Prepare only the missing capability within the authorized environment.

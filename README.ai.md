@@ -86,6 +86,8 @@ echo-kit --workspace "WORKSPACE" workspace init
 
 ## 5. 执行最小验证并检查证据
 
+反复调整页面外观时，读取 `guide echo-workbench --topic browser` 中的快速视觉观察说明。使用 `browser observe --url URL --service NAME` 维持本轮自有页面，普通观察保留登录、弹窗和输入。刷新、导航、模拟数据及动画处理显式选择；重型项目用小型项目适配器补登录和就绪条件。只显示本次匹配响应中的截图，结束时 close。宿主需要保留进程并支持显示图片，worker 计时不包含图片交付或 AI 推理。
+
 在工作区直接执行命令。环境覆盖通过 `--environment NAME` 指定，不再从版本任务继承。先检查配置和资源占用：
 
 ```sh
