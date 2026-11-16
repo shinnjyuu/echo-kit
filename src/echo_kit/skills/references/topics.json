@@ -32,6 +32,7 @@
       "Parallel service startup",
       "Shared operations (local user)",
       "Shared service instances",
+      "Resource usage",
       "Emergency stop",
       "Runtime debugging"
     ],
@@ -45,6 +46,7 @@
     "sections": [
       "Acceptance approaches",
       "Visible browser",
+      "Resource usage",
       "Current guides and release notes",
       "Windows tray viewer (0.8.0+)",
       "Emergency stop",

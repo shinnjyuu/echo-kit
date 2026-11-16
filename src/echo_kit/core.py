@@ -22,7 +22,16 @@ def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
     tmp.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
-    os.replace(tmp, path)
+    # Windows readers/antivirus can briefly deny replacing an open metadata file.
+    # Retry only this idempotent swap, never the business operation that wrote it.
+    for attempt in range(6):
+        try:
+            os.replace(tmp, path)
+            return
+        except OSError as error:
+            if getattr(error, 'winerror', None) not in (5, 32) or attempt == 5:
+                raise
+            time.sleep(.01)
 
 
 def read(path, default=None):

@@ -29,9 +29,10 @@ def parser():
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
                             'docs': ['setup', 'list', 'show', 'check', 'map', 'context', 'read'],
-                            'tray': ['start', 'status', 'stop'], 'emergency': ['stop'],
+                            'tray': ['start', 'status', 'stop'], 'emergency': ['stop'], 'resources': ['status'],
                             'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
         group_help = {'docs': 'Discover and check shared/private project documents',
+                      'resources': 'Read managed service and browser resource usage without application probes',
                       'tray': 'Windows viewing and emergency stop tray',
                       'emergency': 'Force-stop Kit-owned resources across all local workspaces'}
         group = top.add_parser(module, help=group_help.get(module))
@@ -53,7 +54,12 @@ def parser():
                  'browser up opens it once in the system browser (disable with browser.auto_open=false; CI defaults off). '
                  'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
                 if module == 'browser' else {}))
-            if module == 'browser' and action == 'observe':
+            if module == 'resources':
+                cmd.add_argument('names', nargs='*', help='Only these services; omit names to include the workspace browser')
+                cmd.add_argument('--all', action='store_true', help='All known workspaces; no workspace configuration is loaded')
+                cmd.add_argument('--limit', type=int, default=20, help='Page size (1..200; default 20); totals cover all selected resources')
+                cmd.add_argument('--offset', type=int, default=0, help='Nonnegative page offset')
+            elif module == 'browser' and action == 'observe':
                 cmd.add_argument('--url', required=True, help='Initial HTTP(S) URL reachable from the managed browser')
                 cmd.add_argument('--service', action='append', default=[], help='Prepare and share this service and its dependencies')
                 cmd.add_argument('--auth', help='Existing authentication adapter name')
@@ -126,6 +132,13 @@ def parser():
 
 
 def dispatch(args):
+    if args.module == 'resources':
+        from .resource_usage import status
+        if args.all and (args.names or args.environment or getattr(args, '_explicit_workspace', False)
+                         or getattr(args, '_explicit_environment', False)):
+            raise KitError('resources status --all cannot be combined with service names, --workspace or --environment')
+        ws = None if args.all else Workspace(args.workspace, args.environment)
+        return status(ws, args.names, args.limit, args.offset)
     if args.module == 'emergency':
         from .emergency import stop_all
         return stop_all()
@@ -323,6 +336,8 @@ def main(argv=None):
                       "https://pypi.org/simple shinnjyuu-echo-kit", file=sys.stderr)
             raise
         args._update = discovery
+        args._explicit_workspace = any(a == '--workspace' or a.startswith('--workspace=') for a in raw)
+        args._explicit_environment = any(a == '--environment' or a.startswith('--environment=') for a in raw)
         if (args.module, getattr(args, 'action', None)) == ('browser', 'observe'):
             from .observer_cli import observe
             return observe(args)
@@ -351,6 +366,9 @@ def main(argv=None):
     elif args is not None and code == 0 and args.module == 'updates' and args.action == 'notes':
         from .documentation import render_notes
         print(f"Echo Kit {result['version']}\n\n" + render_notes(result))
+    elif args is not None and args.module == 'resources' and 'items' in result:
+        from .resource_usage import render
+        print(render(result))
     elif isinstance(result, list):
         for item in result:
             print(f"{item.get('id', '')} {item.get('case', '')}: {item.get('status', '')}")

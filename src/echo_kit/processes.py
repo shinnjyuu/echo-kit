@@ -57,7 +57,7 @@ def identity_exited(identity):
         return False
 
 
-def verified_process(identity):
+def verified_process(identity, *, check_zombie=True):
     pid = identity.get('pid')
     created = identity.get('created')
     if type(pid) is not int or pid <= 1 or type(created) not in (int, float) or not math.isfinite(created):
@@ -67,13 +67,55 @@ def verified_process(identity):
         with process.oneshot():
             if process.create_time() != created:
                 raise KitError('Process identity changed')
-            if process.status() == psutil.STATUS_ZOMBIE:
+            if check_zombie and process.status() == psutil.STATUS_ZOMBIE:
                 return None
             if process.exe() != identity.get('exe') or not command_matches(process, identity):
                 raise KitError('Process identity changed')
         return process
     except psutil.NoSuchProcess:
         return None
+
+
+def observed_process(identity):
+    # Windows has no Unix zombie state. Its status() queries thread suspension
+    # across the system and is expensive; observations need identity/liveness,
+    # not suspension. Destructive operations keep verified_process's defaults.
+    return verified_process(identity, check_zombie=os.name != 'nt')
+
+
+def parent_snapshot():
+    """One process-parent table per sample, without reading unrelated commands."""
+    if os.name != 'nt':
+        return {p.info['pid']: p.info['ppid'] for p in psutil.process_iter(['pid', 'ppid'])}
+    import ctypes
+    from ctypes import wintypes
+    class Entry(ctypes.Structure):
+        _fields_ = [('size', wintypes.DWORD), ('usage', wintypes.DWORD), ('pid', wintypes.DWORD),
+                    ('heap', ctypes.c_size_t), ('module', wintypes.DWORD), ('threads', wintypes.DWORD),
+                    ('parent', wintypes.DWORD), ('priority', wintypes.LONG), ('flags', wintypes.DWORD),
+                    ('name', wintypes.WCHAR * 260)]
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel.Process32FirstW.argtypes = kernel.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(Entry)]
+    kernel.Process32FirstW.restype = kernel.Process32NextW.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    handle = kernel.CreateToolhelp32Snapshot(2, 0)  # TH32CS_SNAPPROCESS
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        value, result = Entry(), {}
+        value.size = ctypes.sizeof(value)
+        found = kernel.Process32FirstW(handle, ctypes.byref(value))
+        while found:
+            result[value.pid] = value.parent
+            found = kernel.Process32NextW(handle, ctypes.byref(value))
+        if ctypes.get_last_error() != 18:  # ERROR_NO_MORE_FILES
+            raise ctypes.WinError(ctypes.get_last_error())
+        return result
+    finally:
+        kernel.CloseHandle(handle)
 
 
 def process_owner(process):

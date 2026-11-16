@@ -149,6 +149,14 @@ On an interactive Windows desktop, Kit opens a per-session tray while managed se
 
 When memory is low, choose **急停所有工作区** (Emergency stop all workspaces) from the Windows tray menu. One click force-stops this user's local managed services, browsers and tasks. On Windows or Linux, ask the agent explicitly to run `echo-kit emergency stop --all`. The installed command runs locally and skips business saving and cleanup. It cancels older queued starts and admits new launches once it finishes. Restart the tray after installing the new version. See the [emergency stop protocol](docs/protocol.md#emergency-stop).
 
+## Resource usage
+
+Run `echo-kit resources status` for the current workspace's managed services and browser, or `resources status api worker` for only the selected services. `echo-kit --json resources status --all` reads all known workspaces without loading business configuration; do not combine it with workspace, environment or service filters. Results are memory-descending, paginated with --limit/--offset (20 by default), and include full-selection totals, references and operation occupants.
+
+The Windows tray shows read-only memory summaries, the three largest services and per-service/browser measurements. Updates run about every five seconds; data older than fifteen seconds is marked stale. After installing the new package, use tray stop then tray start to load the menu. Linux supports the CLI.
+
+Native memory is process-tree RSS/Working Set with shared instances deduplicated; container figures use Docker's separate accounting. These observations are not whole-machine usage or guaranteed reclaimable memory. Unknown values remain unknown. Queries do not run application health checks or stop resources. See [resource usage](docs/protocol.md#resource-usage).
+
 ## Prepare test identities during onboarding
 
 For cases requiring authentication, onboarding guidance first reuses project test identities, seeds and registration/management commands. When no repeatable entry exists, write a project-owned preparation script. Preparation remains explicit; login, service startup and Verify do not silently create accounts. Skip anonymous cases.

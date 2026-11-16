@@ -279,3 +279,7 @@ echo-kit tray stop            # 只退出托盘，服务和实验继续
 验收按需选择：你自己验收时，AI 准备服务并给出业务前端地址；让 AI 验收时，优先直接交互观察，不默认生成固定脚本或用例配置；需要重复验证、精确时序或回归断言时才固化实验。noVNC 仍只供观看。交互能力与宿主工具有关，无法连接时应如实说明，不能把启动浏览器当成验收通过。
 
 运行时排障按需使用：逻辑问题检查实际变量、调用栈和分支；时序问题优先记录不停顿的关联事件。通过 services/browser/cases 指南主题读取 Python、Node 隔离示例；已安装调试器不等于已经定位问题。不新增调试 CLI 或必装运行时依赖。
+
+## Resource usage (0.15.0)
+
+Use `resources status [SERVICE...]` only when resource usage is relevant; the default scope also includes the managed browser. `resources status --all` reads all known workspaces without configuration and cannot mix with explicit workspace/environment or service names. JSON includes per-kind totals, timestamp, pagination, references and all operation occupants (including observations without run_id). Read the services or browser topic for accounting limits. Do not run health checks or inspect unrelated source/history to explain memory. Unknown/stale measurements are not zero, RSS sums are not reclaimable memory, and no Kit occupant does not prove a service is unused. Windows tray summaries refresh in the background; restart the tray after installing this release. Resource queries are optional, read-only and do not expand authorization.

@@ -122,6 +122,8 @@ class Registry:
             if ref not in record['references']:
                 record['references'].append(ref)
                 save(self.file(identity), record)
+        from .workspace_index import remember
+        remember(ws)
 
     def create(self, ws, name, instance):
         identity = key(ws, name)

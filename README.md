@@ -103,6 +103,14 @@ Echo Kit 0.3.0 起支持区分团队共享文档与个人私有文档：共享�
 - [发布维护说明](docs/publishing.md)：面向维护者的构建和发布流程。
 
 
+## 查看资源用量
+
+`echo-kit resources status` 查看当前工作区服务和托管浏览器的内存、CPU、引用工作区及当前占用者；`resources status api worker` 只查指定服务。`echo-kit --json resources status --all` 可在任意目录查询所有已知工作区，不加载业务配置；不要与工作区、环境或服务筛选混用。列表默认按内存降序，每页 20 项，使用 `--limit`、`--offset` 分页，汇总覆盖完整查询范围。
+
+Windows 托盘增加只读资源摘要、内存最高的三个服务及各服务／浏览器的用量。约每五秒更新，超过十五秒标记旧数据；安装新版后重新执行 `tray stop`、`tray start` 载入菜单。CLI 在 Linux 也可用。
+
+本机服务使用包含子进程的 RSS／Working Set 观测值，共享实例去重；容器按 Docker 口径单列。合计不代表整机占用或停止后一定能释放的内存，未知指标不会当成零。查询不跑业务健康检查，也不自动停止服务。详见[资源用量协议](docs/protocol.md#resource-usage)。
+
 ## 多个服务一起启动
 
 0.6.0 起，`echo-kit services up` 默认同时启动所有符合依赖条件的服务，无需让 AI 一条一条执行。已有服务会复用，失败会保留已启动服务并报告原因。`services up --jobs 1` 可串行排障，资源有限时可通过 `[service_startup] concurrency = 4` 显式限制并发数。

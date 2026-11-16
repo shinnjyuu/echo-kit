@@ -62,15 +62,12 @@ def enabled():
 
 
 def register(ws):
+    from . import workspace_index
+    workspace_index.remember(ws)
     directory = root()
     directory.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256((os.path.normcase(str(ws.root)) + ':' + ws.environment).encode()).hexdigest()
-    entry = {'workspace': str(ws.root), 'environment': ws.environment,
-             'name': str(ws.cfg.get('name', ws.root.name)), 'owner': ws.identity,
-             'services_file': str(ws.state / ('services-' + safe_name(ws.environment) + '.json')),
-             'browser_file': str(ws.state / 'browser.json'),
-             'services': [n for n, s in ws.cfg.get('services', {}).items() if s.get('mode', 'managed') == 'managed'],
-             'browser_managed': not bool(ws.cfg.get('browser', {}).get('endpoint'))}
+    entry = workspace_index.entry(ws)
     with FileLock(str(directory / 'index.lock'), timeout=2):
         index = read(directory / 'projects.json', {})
         index[key] = entry
@@ -109,7 +106,7 @@ def safe_viewer(url):
         return False
 
 
-def snapshot():
+def snapshot(resource_sink=None):
     index = read(root() / 'projects.json', {})
     rows, containers = [], None
     docker_failed = False
@@ -154,7 +151,12 @@ def snapshot():
     from .operations import Journal
     shared = []
     operations = Journal().list(unfinished=True)
-    for record in Registry().all():
+    if resource_sink is None:
+        records = Registry().all()
+    else:
+        from .resource_usage import registry_records
+        records, registration_problems = registry_records()
+    for record in records:
         state = shared_state(record['identity'])
         shared.append({'name': record.get('resource_id') or record['origin']['name'],
                        'instance_id': record['instance_id'], 'state': state if state in ('running', 'stopped') else 'unknown',
@@ -169,6 +171,8 @@ def snapshot():
     if tasks:
         rows.append({'key': 'local-tasks', 'kind': 'tasks', 'name': '本地任务',
                      'environment': '', 'workspace': '', 'services': tasks, 'browser': None})
+    if resource_sink is not None:
+        resource_sink(operations, records if not registration_problems else None)
     return rows
 
 
@@ -268,6 +272,8 @@ def status():
 
 
 def notify(ws):
+    from .workspace_index import remember
+    remember(ws)
     scope = _scope.get()
     if scope is None or scope.get('unavailable'):
         return
@@ -343,6 +349,7 @@ def serve(token):
     # Import GUI dependencies only in the Windows UI child, never in core/CI imports.
     import pystray
     from PIL import Image
+    from .resource_usage import BackgroundUsage, format_memory, summary_text
     directory = root()
     with FileLock(str(directory / 'daemon.lock'), timeout=0):
         done, refresh = threading.Event(), threading.Event()
@@ -351,6 +358,7 @@ def serve(token):
         pending = []
         guard = threading.Lock()
         idle = IdleTimer()
+        usage = BackgroundUsage()
         text = {'running': '进程运行中', 'stopped': '已停止', 'unknown': '状态未知', 'not_owned': '归属不符'}
 
         def quit_ui(*unused):
@@ -398,7 +406,32 @@ def serve(token):
         def menu_items():
             with guard:
                 current = list(rows)
-            items = []
+            sampled = usage.snapshot()
+            summaries = [pystray.MenuItem(line, None, enabled=False) for line in summary_text(sampled)]
+            if sampled:
+                leaders = [i for i in sampled['items'] if i['kind'] == 'service' and i['memory_bytes'] is not None
+                           and i['state'] == 'running'][:3]
+                summaries += [pystray.MenuItem(i['name'] + ': ' + format_memory(i['memory_bytes']), None, enabled=False)
+                              for i in leaders]
+            items = [pystray.MenuItem('资源用量', pystray.Menu(*summaries)), pystray.Menu.SEPARATOR]
+
+            def measured(kind, instance_id=None, workspace=None, environment=None, name=None):
+                if not sampled:
+                    return []
+                found = next((i for i in sampled['items'] if i['kind'] == kind and
+                              ((instance_id is not None and i['instance_id'] == instance_id) or
+                               (workspace is not None and any(r['workspace'] == workspace and
+                                (environment is None or r['environment'] == environment) and
+                                (name is None or r['name'] == name) for r in i['references'])))), None)
+                if not found:
+                    return []
+                stale = '（旧数据）' if time.time() - sampled['sampled_at'] > 15 else ''
+                cpu = '未知' if found['cpu_percent'] is None else f"{found['cpu_percent']:.1f}%"
+                count = found['process_count'] if kind == 'service' else found['container_pids']
+                label = '进程数' if kind == 'service' else '容器 PIDS'
+                return [pystray.MenuItem('内存：' + format_memory(found['memory_bytes']) + stale, None, enabled=False),
+                        pystray.MenuItem('CPU：' + cpu + stale, None, enabled=False),
+                        pystray.MenuItem(label + '：' + (str(count) if count is not None else '未知'), None, enabled=False)]
             for row in current:
                 if not has_resources([row], include_unknown=True):
                     continue
@@ -409,6 +442,7 @@ def serve(token):
                             continue
                         details = [pystray.MenuItem('引用：' + ref['workspace'] + ' [' + ref['environment'] + ']', None, enabled=False)
                                    for ref in service['references']]
+                        details += measured('service', instance_id=service['instance_id'])
                         details += [pystray.MenuItem('使用中：' + user['workspace'] + ' [' + user['environment'] + ']', None, enabled=False)
                                     for user in service['users']]
                         if not service['users']:
@@ -423,15 +457,18 @@ def serve(token):
                 label = row['name'] + ' [' + row['environment'] + ']'
                 if sum(r['name'] == row['name'] and r['environment'] == row['environment'] for r in current) > 1:
                     label += ' — ' + row['workspace']
-                children = [pystray.MenuItem(s['name'] + ': ' + text[s['state']], None, enabled=False) for s in row['services']]
+                children = [pystray.MenuItem(s['name'] + ': ' + text[s['state']],
+                            pystray.Menu(*measured('service', workspace=row['workspace'], environment=row['environment'], name=s['name']))
+                            if sampled else None) for s in row['services']]
                 browser = row['browser']
                 if browser:
                     label_browser = ('旧容器，无观看入口' if browser.get('legacy') else
                                      '无头模式，无观看入口' if browser.get('headless') else '浏览器')
                     children.append(pystray.MenuItem(label_browser + ': ' + text[browser['state']], None, enabled=False))
+                    children += measured('browser', instance_id=browser.get('id'))
                     children.append(pystray.MenuItem('打开调试画面', request_open(row['key']), enabled=bool(browser.get('viewer_url'))))
                 items.append(pystray.MenuItem(label, pystray.Menu(*children)))
-            if not items:
+            if len(items) == 2:
                 items.append(pystray.MenuItem('暂无运行中的托管资源', None, enabled=False))
             items.append(pystray.Menu.SEPARATOR)
             items.append(pystray.MenuItem('急停所有工作区', request_emergency, enabled=not stopping.is_set()))
@@ -445,7 +482,7 @@ def serve(token):
                     if read(directory / 'stop.json', {}).get('token') == token:
                         break
                     try:
-                        current = snapshot()
+                        current = snapshot(resource_sink=usage.request)
                         with guard:
                             rows = current
                             queued, pending[:] = list(pending), []
@@ -457,6 +494,14 @@ def serve(token):
                                 open_viewer(key)
                             except Exception as error:
                                 icon.notify(str(error), 'Echo Kit')
+                        sampled = usage.snapshot()
+                        if sampled:
+                            native = sampled['summary']['native']
+                            containers = sampled['summary']['containers']
+                            def amount(part):
+                                return format_memory(part['memory_bytes']) if not part['unknown_count'] else '部分未知'
+                            stale = '（旧）' if time.time() - sampled['sampled_at'] > 15 else ''
+                            icon.title = f"Echo Kit{stale} · 服务 {amount(native)} · 容器 {amount(containers)}"
                         icon.update_menu()
                         if not stopping.is_set() and idle.expired(current, time.monotonic()):
                             # Serialize idle exit with start() so resource registration cannot be lost.
@@ -481,6 +526,7 @@ def serve(token):
             save(directory / 'instance.json', {'protocol': PROTOCOL, 'token': token,
                                                'identity': fingerprint(os.getpid()), 'version': __version__})
             urgent_thread.start()
+            usage.start()
             thread.start()
 
         with files('echo_kit').joinpath('resources', 'tray.png').open('rb') as resource:
@@ -494,6 +540,7 @@ def serve(token):
             done.set()
             refresh.set()
             urgent.set()
+            usage.close()
             if urgent_thread.is_alive():
                 urgent_thread.join(timeout=5)
             if thread.is_alive():
