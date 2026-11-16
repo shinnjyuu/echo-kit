@@ -193,10 +193,10 @@
   },
   {
     "version": "0.15.0",
-    "changes": "Read-only resources status CLI and Windows tray resource summaries show managed process-tree RSS, CPU, container usage, references and operation occupants.",
-    "configuration": "No new workspace configuration. Discovery hints are maintained in the existing user data directory, separately from ownership evidence.",
-    "applies_when": "A user or Agent needs to locate high-memory managed services across known workspaces.",
-    "steps": "Use resources status, select service names, or use --all without workspace/environment filters. Read the services/browser topic for accounting and unknown/stale values. After installing, run tray stop then tray start to load the new menu.",
-    "no_change_when": "Existing services, browsers, cases and adapters continue unchanged. Resource queries are optional; no automatic stop, limits or history monitoring is added. Older projects enter global discovery on their next startup; current-workspace queries can read old registration without migration."
+    "changes": "Read-only resource usage CLI/tray summaries, plus explicit disk bills, frozen reclamation previews, local keep marks and guarded plan execution. Run verdicts survive with truthful attachment-reclamation status.",
+    "configuration": "Optional root/local storage.runs, storage.observations and storage.caches.NAME settings. Shared cache paths are workspace-relative; personal/absolute local paths and retention belong in local.toml. Modules cannot declare storage. No cache declarations are required for Kit-owned evidence.",
+    "applies_when": "A user or Agent needs resource accounting or authorized reclamation of old run/observation attachments and declared disposable outputs.",
+    "steps": "Use resources status for memory/CPU. Read the resources topic for disk: inspect resources disk [--all], preview resources clean, pin important units with resources keep, then execute resources clean --apply PLAN_ID (optional repeated --unit). Changed/protected units are skipped; inspect the receipt and re-preview remaining content. Restart only the tray after installing for memory summaries; disk scanning is never added to its polling.",
+    "no_change_when": "Existing services, browsers, cases and adapters stay compatible. No automatic deletion, stop, limits, Docker pruning or resource-history monitoring is added. Business runs cleanup stays separate. Existing exports are not overwritten; unknown legacy evidence is only reported, never claimed based on names."
   }
 ]

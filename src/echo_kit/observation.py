@@ -244,8 +244,13 @@ def read_reply(path, request_id, timeout_ms=30000):
     from .core import read
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
+        from .storage_metadata import state
+        if state(Path(path).parent)['state'] != 'not_reclaimed':
+            raise KitError('Observation attachments were reclaimed or are unverified; start a new observation session')
         value = read(path, {})
         if value.get('id') == request_id:
+            if any(not Path(i).is_file() for i in value.get('images', [])):
+                raise KitError('Observation attachments are missing; request a new observation')
             return value
         time.sleep(.025)
     raise KitError('No receipt for the requested id')

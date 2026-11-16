@@ -228,6 +228,52 @@ Resource queries do not execute project health checks, fingerprint sources, prep
 
 The Windows tray adds a read-only resource summary, the three highest-memory running services, and per-service/browser measurements. A single resource worker refreshes about every five seconds, with at most one round in flight. Menu callbacks only read in-memory results; viewer actions and the independent emergency thread do not wait for resource sampling. Results older than 15 seconds are marked stale. Failed measurements are unknown, never zero; resource statistics do not decide process liveness or tray idle exit. After installation, tray stop followed by tray start loads the new menu without changing business resources. Linux keeps the CLI; macOS is not verified.
 
+## Disk reclamation
+
+Disk accounting and deletion are explicit, optional actions; they never run in tray refresh, service status or normal experiments. Read `echo-kit guide echo-workbench --topic resources` when disk usage matters. `resources disk` inventories this workspace/environment; `resources disk --all` inventories known workspaces for this user and Kit data directory, loading only necessary configuration and metadata, never project commands. --all cannot mix with explicit --workspace/--environment. It does not discover projects by scanning the disk.
+
+```sh
+echo-kit resources disk
+echo-kit --json resources disk --all
+echo-kit resources clean
+echo-kit resources clean --root ROOT_ID
+echo-kit resources keep UNIT_ID
+echo-kit resources keep UNIT_ID --remove
+echo-kit resources clean --apply PLAN_ID --unit UNIT_ID
+```
+
+`clean` only previews: it returns an opaque plan_id, eligible units, logical size estimates and protection reasons. Repeated --root narrows the preview to discovered roots. --apply executes that exact saved plan, without accepting deletion paths; repeated --unit selects a subset of its candidates. Existing explicit cleanup authorization is sufficient: do not add a per-item approval ritual. Keep marks are local user-data metadata, never team-file edits. Unit IDs come from disk/preview; they identify a root and immediate child. Lists use --limit (default 20, maximum 200) and --offset; totals cover the entire selection. All commands support --json with a single stdout result; scan progress goes to stderr.
+
+Kit units are whole run or closed observation folders. New writers record workspace, environment, operation and terminal ownership metadata. Old folders require matching existing run/session and operation evidence; directory names alone confer no ownership. Run records, compact HTML reports, session summaries, the last receipt and small ownership/reclamation metadata remain. Reclaimable attachments include trace, screenshots, downloads, detailed results and logs. Run verdicts never change. `runs list/show/report` expose attachment reclamation; an unexamined attachment is not claimed available. Reclaimed observation receipts cannot supply missing images through read_reply. An already-delivered chat image or copied receipt is not retroactively rewritten.
+
+Only explicitly declared project caches are included; each matching immediate child is one unit, including its whole directory contents. Declare **only regenerable disposable output**, never formal deliveries, source, documents or caches containing needed evidence:
+
+```toml
+# echo-kit.toml: relative to the workspace, regardless of module/script location
+[storage.caches.release_archives]
+path = "artifacts/releases"
+include = ["*.tar", "*.tar.gz"]
+keep_days = 7
+keep_latest = 0
+
+# Optional overrides; omit these to keep the defaults below.
+[storage.runs]
+passed_days = 7
+other_days = 30
+keep_latest = 3
+[storage.observations]
+keep_days = 7
+keep_latest = 3
+```
+
+Root configuration alone declares shared storage (relative paths inside the workspace); .echo-kit/local.toml holds machine-specific cache paths, absolute local paths and personal retention. Existing merge-then-environment precedence still applies; override the same environment when needed. Module includes cannot declare storage, and there are no private includes. `include` defaults to ["*"] and matches immediate child names, not recursive glob paths; verify the whole range is disposable before registering it. Do not register all of .echo-kit/private: explicitly select an appropriate subdirectory and patterns instead. Retention values are nonnegative integers. Kit defaults retain passed attachments seven days, other terminal run attachments thirty days, and at least three per case/variant/environment; observations retain seven days and at least three terminal sessions per environment. Declared caches default to seven days and no minimum count. Age uses the latest payload modification/end time, not just directory mtime. All references' protections and the most conservative retention apply to duplicate physical roots; ambiguous overlaps are only reported. Important evidence can be pinned even when it is old.
+
+Scans read metadata and filesystem attributes, not payload bodies. Defaults are 200,000 entries and 30 seconds, overridable with --max-entries and --timeout-seconds. Incomplete root scans are unverified and produce no deletion candidates for that root. Global and per-root diagnostics explain missing metadata, Git uncertainty, links and ownership conflicts. Workspace/disk/user-data roots, configuration, registered document entries, Git metadata/tracked files, symlinks, Windows junction/reparse points and multiply-linked ordinary files are protected. Reclamation does not touch Docker images or containers.
+
+Plans bind root/configuration digests and file/directory identities. Apply rechecks configuration, inventory, modification state, keep marks and occupancy. Changed/protected units are skipped for a fresh preview. Kit unit writes use shared storage occupancy; declared caches coordinate per root, reclamation takes exclusive occupancy. Registered active service logs/build outputs remain protected after startup. Active markers, nonterminal evidence, pending business cleanup and unfinished or old noncooperating operations are protected. Resolving a stale operation alone does not certify deletable attachments. Coordination covers cooperating Kit processes, not arbitrary external writers or remote business tasks. Native handle/dir-fd checks protect parent paths and leaves; only revalidated planned files and frozen empty directories are removed, never a root or newly discovered content.
+
+Apply returns deleted, already_missing, skipped, partial/failed and unconfirmed results, file counts, deleted logical bytes and separately observed free-space change. Logical bytes are not a promise of reclaimed physical disk blocks. Permission errors or one damaged item do not expand scope. Interruptions and partial failures do not roll back or automatically retry. Each plan is attempted once; inspect its local receipt/event record and preview the remainder. `runs cleanup` remains business cleanup and never calls disk reclamation; deleted files do not imply business cleanup succeeded. A fully verified operation exits 0, incomplete/unverified results exit 2 and interruption exits 130. No background cleaner or force-bypass flag is provided.
+
 ## Windows tray viewer (0.8.0+)
 
 On an interactive Windows desktop, starting or reusing managed services, browsers, or registered builds and experiments offers a per-session tray entry. Choose the project and Open debugging viewer to reopen its noVNC view. The tray reports process identity and container state. The top-level **急停所有工作区** action invokes [emergency stop](#emergency-stop) from the independent tray process.

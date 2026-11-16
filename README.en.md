@@ -149,6 +149,12 @@ On an interactive Windows desktop, Kit opens a per-session tray while managed se
 
 When memory is low, choose **急停所有工作区** (Emergency stop all workspaces) from the Windows tray menu. One click force-stops this user's local managed services, browsers and tasks. On Windows or Linux, ask the agent explicitly to run `echo-kit emergency stop --all`. The installed command runs locally and skips business saving and cleanup. It cancels older queued starts and admits new launches once it finishes. Restart the tray after installing the new version. See the [emergency stop protocol](docs/protocol.md#emergency-stop).
 
+## On-demand disk reclamation
+
+`echo-kit resources disk` inventories run attachments, closed observation sessions and explicitly declared disposable caches. Add --all for known workspaces. `resources clean` **only previews**; execute its frozen list with `resources clean --apply PLAN_ID`. Repeated --root filters preview roots; repeated --unit selects plan candidates. `resources keep UNIT_ID` pins important evidence locally (add --remove to unpin).
+
+Recent evidence, latest results, run records and compact reports are retained. Active/pending work, tracked files and uncertain ownership stay protected; changes after preview cause a skip. Declare regenerable cache roots in root configuration or local overrides under [storage.caches.NAME]; personal paths and retention belong in .echo-kit/local.toml. No background deletion or Docker image cleanup is added. Logical size does not guarantee an equal free-space increase. Read [disk reclamation](docs/protocol.md#disk-reclamation) for configuration, limits and receipts.
+
 ## Resource usage
 
 Run `echo-kit resources status` for the current workspace's managed services and browser, or `resources status api worker` for only the selected services. `echo-kit --json resources status --all` reads all known workspaces without loading business configuration; do not combine it with workspace, environment or service filters. Results are memory-descending, paginated with --limit/--offset (20 by default), and include full-selection totals, references and operation occupants.

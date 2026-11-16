@@ -144,5 +144,8 @@ def runs(ws, case=None, status=None, limit=20, offset=0):
             if len(issues) < 5:
                 issues.append({'id': path.parent.name, 'reason': 'unreadable_run_record'})
     rows.sort(key=lambda row: (row['started'] is not None, row['started'] or 0, row['id']), reverse=True)
-    return {**page(rows, limit, offset), 'issues': issues, 'issue_count': issue_count,
-            'issues_truncated': issue_count > len(issues)}
+    result = page(rows, limit, offset)
+    from .storage_metadata import state
+    for item in result['items']:
+        item['reclamation'] = state(ws.runs / item['id'])
+    return {**result, 'issues': issues, 'issue_count': issue_count, 'issues_truncated': issue_count > len(issues)}

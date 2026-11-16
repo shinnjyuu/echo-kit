@@ -16,7 +16,8 @@ from .tray import startup_scope
 def cleanup_run(ws, path):
     from filelock import FileLock
     from .operations import Journal, bind_operation
-    with launches.launch_lock(FileLock(str(path / 'cleanup.lock'), timeout=1)):
+    from .storage_config import cleanup_lease
+    with cleanup_lease(ws, path), launches.launch_lock(FileLock(str(path / 'cleanup.lock'), timeout=1)):
         record = read(path / 'run.json')
         if record['environment'] != ws.environment:
             raise KitError('Cleanup environment differs from the original run')
@@ -133,6 +134,8 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
             reservation = lab_reservation()
         with reservation as (oid, prepared), interrupted_run(path, record, case):
             record['operation_id'] = oid
+            from .storage_metadata import own
+            own(ws, path, 'runs', oid)
             from .operations import Journal
             record['resources'] = Journal().show(oid)['held']
             record['service_access'] = access
@@ -233,6 +236,8 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
             record['finished'] = time.time()
             save(path / 'run.json', record)
             report(path)
+            from .storage_metadata import own
+            own(ws, path, 'runs', oid, record)
             outputs.append(record)
         if (path / 'active.json').exists():
             break

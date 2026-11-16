@@ -29,10 +29,10 @@ def parser():
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
                             'skills': ['list', 'show', 'export', 'status'], 'protocol': ['show'],
                             'docs': ['setup', 'list', 'show', 'check', 'map', 'context', 'read'],
-                            'tray': ['start', 'status', 'stop'], 'emergency': ['stop'], 'resources': ['status'],
+                            'tray': ['start', 'status', 'stop'], 'emergency': ['stop'], 'resources': ['status', 'disk', 'clean', 'keep'],
                             'runtime': ['info'], 'updates': ['check', 'setup', 'notes']}.items():
         group_help = {'docs': 'Discover and check shared/private project documents',
-                      'resources': 'Read managed service and browser resource usage without application probes',
+                      'resources': 'Read managed resource usage; preview and reclaim declared disk artifacts',
                       'tray': 'Windows viewing and emergency stop tray',
                       'emergency': 'Force-stop Kit-owned resources across all local workspaces'}
         group = top.add_parser(module, help=group_help.get(module))
@@ -55,10 +55,22 @@ def parser():
                  'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
                 if module == 'browser' else {}))
             if module == 'resources':
-                cmd.add_argument('names', nargs='*', help='Only these services; omit names to include the workspace browser')
-                cmd.add_argument('--all', action='store_true', help='All known workspaces; no workspace configuration is loaded')
-                cmd.add_argument('--limit', type=int, default=20, help='Page size (1..200; default 20); totals cover all selected resources')
-                cmd.add_argument('--offset', type=int, default=0, help='Nonnegative page offset')
+                if action == 'keep':
+                    cmd.add_argument('unit_id', help='Unit ID from resources disk or clean; never a path')
+                    cmd.add_argument('--remove', action='store_true', help='Remove the local keep mark')
+                else:
+                    if action == 'status':
+                        cmd.add_argument('names', nargs='*', help='Only these services; omit names to include the workspace browser')
+                    else:
+                        cmd.add_argument('--root', action='append', default=[], help='Only this discovered root ID; repeatable')
+                        cmd.add_argument('--max-entries', type=int, default=200000, help='Filesystem entry scan budget (default 200000)')
+                        cmd.add_argument('--timeout-seconds', type=float, default=30, help='Scan time budget (default 30 seconds)')
+                    cmd.add_argument('--all', action='store_true', help='All known workspaces; disk queries load necessary configuration only')
+                    cmd.add_argument('--limit', type=int, default=20, help='Page size (1..200; default 20); totals cover the full scope')
+                    cmd.add_argument('--offset', type=int, default=0, help='Nonnegative page offset')
+                    if action == 'clean':
+                        cmd.add_argument('--apply', metavar='PLAN_ID', help='Execute a frozen preview once; no arbitrary paths or forced bypass')
+                        cmd.add_argument('--unit', action='append', default=[], help='Only this candidate unit from the plan; repeatable, requires --apply')
             elif module == 'browser' and action == 'observe':
                 cmd.add_argument('--url', required=True, help='Initial HTTP(S) URL reachable from the managed browser')
                 cmd.add_argument('--service', action='append', default=[], help='Prepare and share this service and its dependencies')
@@ -133,12 +145,27 @@ def parser():
 
 def dispatch(args):
     if args.module == 'resources':
-        from .resource_usage import status
-        if args.all and (args.names or args.environment or getattr(args, '_explicit_workspace', False)
-                         or getattr(args, '_explicit_environment', False)):
-            raise KitError('resources status --all cannot be combined with service names, --workspace or --environment')
+        explicit = bool(args.environment or getattr(args, '_explicit_workspace', False) or getattr(args, '_explicit_environment', False))
+        if args.action == 'keep' or (args.action == 'clean' and args.apply):
+            from . import storage
+            if explicit or (args.action == 'clean' and (args.all or args.root or args.max_entries != 200000 or args.timeout_seconds != 30)):
+                raise KitError('Keep/apply use discovered IDs and the preview scope; omit workspace, environment and scan options')
+            if args.action == 'keep':
+                return storage.keep(args.unit_id, args.remove)
+            return storage.apply(args.apply, args.unit, limit=args.limit, offset=args.offset, actor=args.actor)
+        if args.all and (getattr(args, 'names', []) or explicit):
+            raise KitError('resources --all cannot be combined with service names, --workspace or --environment')
         ws = None if args.all else Workspace(args.workspace, args.environment)
-        return status(ws, args.names, args.limit, args.offset)
+        if args.action == 'status':
+            from .resource_usage import status
+            return status(ws, args.names, args.limit, args.offset)
+        if args.action == 'clean' and args.unit:
+            raise KitError('--unit requires --apply PLAN_ID')
+        from . import storage
+        progress = None if args.json else lambda count: print(f'Echo Kit: scanned {count} filesystem entries', file=sys.stderr)
+        return getattr(storage, 'preview' if args.action == 'clean' else 'disk')(
+            ws, all_workspaces=args.all, root_ids=args.root, limit=args.limit, offset=args.offset,
+            max_entries=args.max_entries, timeout=args.timeout_seconds, progress=progress)
     if args.module == 'emergency':
         from .emergency import stop_all
         return stop_all()
@@ -238,7 +265,8 @@ def dispatch(args):
             return runs(ws, args.case, args.status, args.limit, args.offset)
         path = locate(ws, args.ids[0])
         if args.action == 'show':
-            return read(path / 'run.json')
+            from .storage_metadata import state
+            return {**read(path / 'run.json'), 'reclamation': state(path)}
         if args.action == 'report':
             return {'report': report(path)}
         if args.action == 'compare':
@@ -319,7 +347,9 @@ def main(argv=None):
         if not diagnostic:
             can_launch = (route.module in ('auth', 'lab', 'verify')
                           or (route.module, route.action) in (('services', 'up'), ('services', 'restart'),
-                                                             ('browser', 'up'), ('browser', 'observe'), ('runs', 'cleanup')))
+                                                             ('browser', 'up'), ('browser', 'observe'), ('runs', 'cleanup'))
+                          or ((route.module, route.action) == ('resources', 'clean')
+                              and any(x == '--apply' or x.startswith('--apply=') for x in raw)))
             if can_launch and not any(x in ('--help', '-h') for x in raw):
                 inherited = forwarded_generation if os.environ.get(updates.FORWARDED) else None
                 admission.enter_context(launches.scope(inherited))
@@ -366,8 +396,11 @@ def main(argv=None):
     elif args is not None and code == 0 and args.module == 'updates' and args.action == 'notes':
         from .documentation import render_notes
         print(f"Echo Kit {result['version']}\n\n" + render_notes(result))
-    elif args is not None and args.module == 'resources' and 'items' in result:
-        from .resource_usage import render
+    elif args is not None and args.module == 'resources' and ('items' in result or 'kept' in result):
+        if args.action == 'status':
+            from .resource_usage import render
+        else:
+            from .storage import render
         print(render(result))
     elif isinstance(result, list):
         for item in result:

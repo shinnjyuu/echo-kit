@@ -111,6 +111,12 @@ Windows 托盘增加只读资源摘要、内存最高的三个服务及各服务
 
 本机服务使用包含子进程的 RSS／Working Set 观测值，共享实例去重；容器按 Docker 口径单列。合计不代表整机占用或停止后一定能释放的内存，未知指标不会当成零。查询不跑业务健康检查，也不自动停止服务。详见[资源用量协议](docs/protocol.md#resource-usage)。
 
+## 按需回收磁盘产物
+
+`echo-kit resources disk` 查看运行附件、已结束观察会话和已声明临时目录的磁盘账单；加 `--all` 查询所有已知工作区。`resources clean` **只生成预览**，取得计划编号后用 `resources clean --apply PLAN_ID` 执行。可用 `--root ROOT_ID` 缩小预览、`--unit UNIT_ID` 选择计划中的部分条目，`resources keep UNIT_ID` 标记重要证据。
+
+默认保留近期和最近几次结果、运行主记录与简短报告。活跃任务、待业务清理、Git 跟踪和归属不明内容会受保护；预览后有变化会跳过。项目临时目录需通过根配置或本机配置的 `[storage.caches.NAME]` 显式登记，个人路径和保留偏好放 `.echo-kit/local.toml`。不后台自动删除，不清理 Docker 镜像；预计逻辑体积不等于实际腾出的空间。详见[磁盘回收规则与配置](docs/protocol.md#disk-reclamation)。
+
 ## 多个服务一起启动
 
 0.6.0 起，`echo-kit services up` 默认同时启动所有符合依赖条件的服务，无需让 AI 一条一条执行。已有服务会复用，失败会保留已启动服务并报告原因。`services up --jobs 1` 可串行排障，资源有限时可通过 `[service_startup] concurrency = 4` 显式限制并发数。

@@ -168,9 +168,11 @@ def session(ws, args):
             raise KitError('Browser instance changed during observation preparation')
         launches.checkpoint()
         output = ws.state / 'observations' / oid
-        output.mkdir(parents=True, exist_ok=True)
+        output.mkdir(parents=True, exist_ok=False)
         journal = Journal()
-        journal.update(oid, evidence=str(output))
+        journal.protect_evidence(oid, output)
+        from .storage_metadata import own
+        own(ws, output, 'observations', oid)
         settings = {'url': args.url, 'endpoint': info['endpoint'], 'viewer_url': info.get('viewer_url'),
                     'output': str(output), 'operation_id': oid, 'auth': auth,
                     'timeout_ms': args.timeout_ms, 'generation': launches.admitted_generation()}
@@ -223,6 +225,7 @@ def session(ws, args):
             save(output / 'session.json', metadata)
             if not confirmed and not cancelled:
                 journal.update(oid, requires_resolution=True)
+            own(ws, output, 'observations', oid, {**metadata, 'finished': time.time()})
 
 
 def observe(args):

@@ -73,6 +73,9 @@ class Workspace:
         self.identity = hashlib.sha256(str(self.root).encode()).hexdigest()[:20]
         self.actor = None
         self.tool_update = None
+        if 'storage' in self.cfg:
+            from .storage_config import settings
+            settings(self)
 
     def path(self, value):
         return (self.root / value).resolve()
@@ -139,6 +142,10 @@ def new_run(ws, case, kind, inputs=None):
               'tool': tool_info(), 'update': ws.tool_update,
               'input_keys': sorted((inputs or {}).keys()), 'checks': [], 'events': []}
     save(path / 'run.json', record)
+    from .storage_metadata import own
+    from .workspace_index import remember
+    own(ws, path, 'runs')
+    remember(ws)
     return path, record
 
 

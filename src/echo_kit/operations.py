@@ -120,6 +120,20 @@ class Journal:
     def lock(self):
         return FileLock(str(self.root / 'journal.lock'), timeout=5)
 
+    def protect_evidence(self, oid, path):
+        """Attach the fresh, uniquely named observation directory before writers run."""
+        resource = 'storage.unit:' + canonical_path(path)
+        with self.lock():
+            record = self._read(oid)
+            if record['state'] != 'running' or record['identity']['pid'] != os.getpid():
+                raise KitError('Evidence registration requires its live operation owner')
+            record['resources'][resource] = record['held'][resource] = 'shared'
+            record['evidence'] = str(path)
+            save(self.file(oid), record)
+        for current, held in _held.get():
+            if current == oid:
+                held[resource] = 'shared'
+
     def file(self, oid):
         return self.root / (safe_name(oid) + '.json')
 
@@ -337,6 +351,8 @@ def activity(action, state, **details):
 def operation(ws, action, resources, run_id=None, evidence=None):
     from .launches import EmergencyInterrupted, checkpoint
     checkpoint()
+    from .storage_config import writer_resources
+    resources = {**resources, **writer_resources(ws, action, evidence)}
     try:
         check_legacy(ws)
     except KitError as error:

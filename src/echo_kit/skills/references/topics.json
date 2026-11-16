@@ -79,6 +79,12 @@
     "references": []
   },
   {
+    "id": "resources",
+    "description": "On-demand resource accounting, disk bills, retention and reclamation plans",
+    "sections": ["Resource usage", "Disk reclamation"],
+    "references": []
+  },
+  {
     "id": "updates",
     "description": "Before adapting upgraded tools or merging exported Skills",
     "sections": [

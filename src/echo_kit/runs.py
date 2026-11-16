@@ -24,6 +24,12 @@ def compare(left, right):
 def report(path):
     path = Path(path)
     r = read(path / 'run.json')
+    from .storage_metadata import state
+    reclaimed = state(path)['state']
+    notice = {'reclaimed': '附件已回收 / Attachments reclaimed. Original verdict is unchanged.',
+              'partial': '部分附件缺失 / Some attachments are missing. Original verdict is unchanged.',
+              'in_progress': '附件回收未完成 / Reclamation is incomplete; inspect the processing receipt.',
+              'unverified': '附件状态未验证 / Attachment availability is unverified.'}.get(reclaimed, '')
     esc = lambda x: html.escape(str(x))
     rows = ''.join(f'<tr><td>{esc(c["name"])}</td><td>{esc(c["status"])}</td><td>{esc(c.get("detail", ""))}</td></tr>' for c in r.get('checks', []))
     events = ''.join(f'<li>{esc(e["label"])} — {esc(e["status"])}</li>' for e in r.get('events', []))
@@ -36,6 +42,7 @@ def report(path):
     content = f'''<!doctype html><html lang="en"><meta charset="utf-8"><title>Echo {esc(r['id'])}</title>
 <style>body{{font:16px/1.7 system-ui;max-width:1000px;margin:40px auto;padding:20px;color:#243244}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:10px;text-align:left}}pre{{white-space:pre-wrap;overflow-wrap:anywhere}}</style>
 <h1>{esc(r['case'])}</h1><p>{esc(r['id'])} · {esc(r['environment'])} · <strong>{esc(r['status'])}</strong></p>
+<p>{esc(notice)}</p>
 <p>{esc(r.get('reason', ''))}</p><h2>Checks</h2><table><tr><th>Check</th><th>Status</th><th>Detail</th></tr>{rows}</table>
 <h2>Timeline</h2><ol>{events}</ol><h2>Artifacts</h2><ul>{''.join(links)}</ul>
 <h2>Versions</h2><pre>{esc(json.dumps(r.get('versions', {}), indent=2))}</pre>
