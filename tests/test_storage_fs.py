@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -69,8 +70,21 @@ def test_restored_mtime_does_not_hide_modification(tmp_path):
     file = tmp_path / 'payload'
     file.write_bytes(b'first')
     entry = frozen(tmp_path, file)
+    # File clocks may have coarser resolution than rapid CI writes. Observe a
+    # later filesystem tick instead of assuming a fixed sleep is sufficient.
+    key = 'change_time' if os.name == 'nt' else 'ctime'
+    probe = tmp_path / 'clock-probe'
+    deadline = time.monotonic() + 5
+    while True:
+        probe.touch()
+        if fs.file_identity(probe, probe.lstat())[key] > entry['identity'][key]:
+            break
+        if time.monotonic() >= deadline:
+            pytest.fail('Filesystem change clock did not advance')
+        time.sleep(.001)
     file.write_bytes(b'other')
     os.utime(file, ns=(entry['identity']['mtime'], entry['identity']['mtime']))
+    assert fs.file_identity(file, file.lstat())[key] > entry['identity'][key]
     with pytest.raises(fs.UnsafeStorage):
         fs.remove(tmp_path, entry, fs.identity(tmp_path.stat()), {})
     assert file.read_bytes() == b'other'
