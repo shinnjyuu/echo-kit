@@ -101,6 +101,13 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
     if name not in cases:
         raise KitError('Unknown case: ' + name)
     case = cases[name]
+    browser_backend = None
+    if case.get('browser'):
+        from .browser import selected_backend
+        browser_backend = selected_backend(ws, case.get('browser_backend'))
+        if browser_backend == 'agent-browser' and case.get('browser_backend') != 'agent-browser':
+            raise KitError('Browser cases must declare browser_backend="agent-browser" after adapting their interface, '
+                           'or explicitly select playwright compatibility')
     if variant != 'baseline' and variant not in case.get('variants', {}):
         raise KitError('Unknown variant: ' + variant)
     from .operations import operation, service_resources, service_names, browser_resources
@@ -115,7 +122,11 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
         names = service_names(ws, names)
     resources = {}
     if case.get('browser'):
-        resources.update(browser_resources(ws))
+        if browser_backend == 'playwright':
+            original_browser = ws.cfg.get('browser', {})
+            ws.cfg['browser'] = {**original_browser, 'backend': 'playwright'}
+            resources.update(browser_resources(ws))
+            ws.cfg['browser'] = original_browser
     if case.get('creates_tasks'):
         resources['case:' + str(ws.root) + ':' + ws.environment + ':' + name] = 'exclusive'
     outputs = []
@@ -161,7 +172,10 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                         record['auth'] = summary
                         event(path, record, 'authentication', 'passed')
                     if case.get('browser'):
-                        browser = manage(ws, 'up')
+                        if browser_backend == 'agent-browser':
+                            browser = manage(ws, 'up', backend=browser_backend, sid=uuid.uuid4().hex, auth_state=state)
+                        else:
+                            browser = manage(ws, 'up', backend=browser_backend)
                         record['browser'] = browser
                         save(path / 'browser.json', browser)
                         event(path, record, 'browser', 'passed')
@@ -233,6 +247,11 @@ def run(ws, name, kind='lab', variant='baseline', repeat=1):
                 else:
                     record['cleanup'] = 'unconfirmed'
             launches.checkpoint()
+            if browser and browser.get('backend') == 'agent-browser':
+                try:
+                    manage(ws, 'down', backend='agent-browser', sid=browser['session_id'])
+                except KitError:
+                    record.update(status='unverified', reason='Native browser cleanup unconfirmed')
             record['finished'] = time.time()
             save(path / 'run.json', record)
             report(path)

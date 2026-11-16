@@ -34,7 +34,7 @@ def test_two_workspaces_keep_independent_viewers(tmp_path, monkeypatch):
                     if port not in ports:
                         chosen.append(port)
                         ports.add(port)
-                workspace.cfg['browser'] = {'port': chosen[0], 'viewer_port': chosen[1],
+                workspace.cfg['browser'] = {'backend': 'playwright', 'port': chosen[0], 'viewer_port': chosen[1],
                                             'auto_open': False, 'build_timeout': 600}
                 workspaces.append(workspace)
                 result = browser.manage(workspace, 'up')
@@ -155,7 +155,7 @@ def ws(tmp_path):
     port, viewer = free_port(), free_port()
     while viewer == port:
         viewer = free_port()
-    ws.cfg['browser'] = {'port': port, 'viewer_port': viewer, 'auto_open': False, 'build_timeout': 600}
+    ws.cfg['browser'] = {'backend': 'playwright', 'port': port, 'viewer_port': viewer, 'auto_open': False, 'build_timeout': 600}
     yield ws
     if (ws.state / 'browser.json').exists():
         browser.manage(ws, 'down')

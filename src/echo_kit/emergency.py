@@ -195,6 +195,9 @@ class Sweep:
     def browser(self, state, owner, workspace):
         if not isinstance(state, dict) or not isinstance(owner, str):
             raise KitError('Invalid browser registration')
+        if state.get('backend') == 'agent-browser':
+            self.native_browser(state, workspace)
+            return
         cid = state.get('id')
         if not isinstance(cid, str) or not CONTAINER_ID.fullmatch(cid):
             raise KitError('Missing full browser container ID')
@@ -202,6 +205,17 @@ class Sweep:
         if key not in self.browsers:
             row = self.row('browser', cid, workspace)
             self.browsers[key] = (row, {**state, 'owner': owner})
+
+    def native_browser(self, record, workspace):
+        """Signal verified native roots, including orphans after a worker crash."""
+        sid = safe_name(record['session_id'])
+        identities = [record['identity'], *record.get('children', [])]
+        if any(not isinstance(identity, dict) for identity in identities):
+            raise KitError('Invalid native browser identities')
+        for identity in identities:
+            row = self.process('native_browser', identity, sid, workspace)
+            if record.get('operation_id'):
+                self.operation_targets.setdefault(record['operation_id'], []).append(row)
 
     def pending(self, paths):
         unresolved = {}
@@ -212,7 +226,7 @@ class Sweep:
                     continue
                 kind = record['kind']
                 operations = record.get('operations', [])
-                if kind not in ('task', 'service', 'browser') or not isinstance(operations, list) or not all(
+                if kind not in ('task', 'service', 'browser', 'native_browser') or not isinstance(operations, list) or not all(
                         isinstance(oid, str) for oid in operations):
                     raise KitError('Invalid launch registration')
                 self.workspace(record)
@@ -252,6 +266,12 @@ class Sweep:
                 self.issue(path)
 
     def registered_workspaces(self):
+        from . import workspace_index
+        hints, problems = workspace_index.known()
+        for hint in hints:
+            self.workspace(hint)
+        for problem in problems:
+            self.issue(problem.get('file', 'workspace-index'), problem['reason'])
         for path in (data_root() / 'tray').glob('session-*/projects.json'):
             try:
                 for entry in (object_record(path) or {}).values():
@@ -300,6 +320,14 @@ class Sweep:
                     self.browser(browser, owner, root)
             except RECORD_ERRORS:
                 self.issue(path)
+            native, problems = workspace_index.native_records({'workspace': str(root), 'environment': 'local'})
+            for problem in problems:
+                self.issue(problem.get('file', root / '.echo-kit/native-browsers'), problem['reason'], root)
+            for record in native:
+                try:
+                    self.native_browser(record, root)
+                except RECORD_ERRORS:
+                    self.issue(root / '.echo-kit/native-browsers', 'native_browser_ownership_unconfirmed', root)
 
     def operations(self, journal):
         unfinished = []
@@ -361,8 +389,13 @@ def stop_registered_browser(state, owner):
     sweep = Sweep()
     try:
         sweep.browser(state, owner, None)
-        stop_containers(sweep.browsers.values(), time.monotonic() + VERIFY_SECONDS)
-        return all(row['status'] != 'unconfirmed' for row in sweep.targets)
+        deadline = time.monotonic() + VERIFY_SECONDS
+        stop_containers(sweep.browsers.values(), deadline)
+        while sweep.waiting and time.monotonic() < deadline:
+            sweep.verify_processes()
+            if sweep.waiting:
+                time.sleep(.05)
+        return not sweep.waiting and all(row['status'] in ('stopped', 'already_exited') for row in sweep.targets)
     except RECORD_ERRORS:
         return False
 

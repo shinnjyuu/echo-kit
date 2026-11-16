@@ -74,6 +74,7 @@ def visual_fixture(tmp_path):
     (tmp_path / 'echo-kit.toml').write_text(f'''schema_version = 1
 name = "observation-fixture"
 [browser]
+backend = "playwright"
 port = {control}
 viewer_port = {viewer}
 auto_open = false

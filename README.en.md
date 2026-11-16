@@ -8,6 +8,30 @@ Echo Kit is a toolkit for AI coding assistants. It helps them reuse a project's 
 
 This page is for people discovering Echo Kit for the first time. AI assistants setting up a project should read the [AI onboarding guide](README.ai.md) (Chinese).
 
+## 1.0: implement from a prototype, compare with real evidence
+
+These capabilities belong to 1.0.0; official PyPI determines release availability. Existing browser configurations must select a backend explicitly.
+
+Daily frontend debugging defaults to a Kit-owned headed local Chrome driven by the pinned agent-browser. The AI reads, clicks, fills and captures the page through short commands without first writing a control script. Docker/noVNC is used only when `backend = "playwright"` is explicitly selected.
+
+```sh
+echo-kit browser up --url http://localhost:5173 --service web
+echo-kit browser exec -- snapshot -c
+echo-kit browser exec -- click @e1
+echo-kit browser exec -- screenshot
+```
+
+For prototype fidelity, use a persistent observation session:
+
+```sh
+echo-kit browser observe --url http://localhost:5173 \
+  --reference prototypes/dashboard.html --spec docs/dashboard.md
+```
+
+HTML/URLs provide rendered references; Markdown/PRDs provide requirements. Explicitly capture a fixed baseline, inspect selected measurements and images, correct evidenced differences, then compare again. Reference browsers are temporary by default. Ordinary edits need no fixed scripts or whole-site matrix. Markdown alone cannot establish pixel fidelity. Read `echo-kit guide echo-workbench --topic visual`.
+
+Upgrading does not rewrite business projects. Old browser configuration must explicitly select native or compatibility mode. Playwright helpers, callbacks and trace.zip are compatibility-only; native traces are Chrome/CDP JSON. The 1.x stability baseline starts with these explicitly distinguished interfaces, not a claim that all 0.15 browser scripts migrate unchanged.
+
 ## What can it help me do?
 
 Suppose your AI has just fixed a file export feature. You still want to know: does the page work? Was the file actually downloaded? Is its content correct?
@@ -85,11 +109,11 @@ The project continues to own its business dependencies and development workflow.
 
 ## Requirements and current scope
 
-Echo Kit requires Python 3.11+; your project can use other languages. Your AI can help install the tool and its runtime. Ordinary experiments and API verification do not require Docker. Docker is needed for the Kit-managed browser.
+Echo Kit requires Python 3.11+; your project can use other languages. Your AI can help install the tool and its runtime. Ordinary experiments and API verification do not require Docker. Docker is needed only for the explicitly selected Playwright compatibility browser.
 
 **Managed local services may stop when the AI application exits, updates, or crashes. This is an allowed lifecycle outcome.** Echo Kit supports reusing services after a command finishes, but does not guarantee that they survive their host application exiting or that they are automatically cleaned up when it exits. A later AI session should inspect service status before reusing or starting them. See the [service lifecycle rules](docs/protocol.md#managed-service-lifetime).
 
-Current validation evidence covers Windows and Linux containers; macOS has not been verified. Authentication must follow the project's normal login flow. Screenshots, logs, and downloads may contain business data: review them before sharing.
+Current validation evidence covers Windows and Linux containers; The native runtime supports Windows x64 and Linux x64; Linux browser checks use Xvfb. macOS and other architectures are not yet supported by the native backend. Authentication must follow the project's normal login flow. Screenshots, logs, and downloads may contain business data: review them before sharing.
 
 Verification conclusions cover only the checks actually executed. Kit distinguishes failed, blocked, and unverified outcomes. Historical records help explain what happened, but do not guarantee identical results on a rerun.
 
@@ -99,7 +123,7 @@ Since 0.3.0, Echo Kit distinguishes team-shared documents from personal, private
 
 ## Further reading
 
-Use `echo-kit browser observe --url URL --service web` for repeated visual feedback on a page. The persistent session keeps its own login, dialogs and unsaved inputs, returning fresh screenshots and bounded layout diagnostics. Reload and navigation are explicit. Simple pages use the built-in worker; business pages can provide a small project adapter. See [fast visual observation](src/echo_kit/skills/references/visual-observation.md).
+Use `echo-kit browser observe --url URL --service web` for repeated visual feedback on a page. The persistent session keeps its own login, dialogs and unsaved inputs, returning fresh screenshots and bounded layout diagnostics. Reload and navigation are explicit. Native pages use short managed commands and explicit readiness checks; old Python callbacks require explicit Playwright compatibility mode. See [fast visual observation](src/echo_kit/skills/references/visual-observation.md).
 
 The public protocol is in English; the other guides below are currently in Chinese.
 
@@ -118,36 +142,33 @@ Project scripts own shared builds and special startup sequences. Kit manages ser
 
 ## Watch the page your AI is debugging
 
-Since 0.6.0, managed browsers run in headed mode by default. `echo-kit browser up` or a browser verification case starts the Docker browser and attempts to open a read-only viewer in your system's default browser. You see the same desktop the AI is operating. There is no Edge requirement and no VNC client to install. The viewer cannot send mouse or keyboard input, so it does not interfere with the experiment.
-
-First use builds and caches a browser image, requiring internet access to download dependencies and taking longer than subsequent starts. Kit attempts to open the viewer only once per container. Closing it does not stop the experiment or cause it to reopen automatically. You can reopen the returned `viewer_url` at any time. `browser down` stops and removes the owned container, subject to active-operation protections.
+1.0 defaults to an independent Kit-owned headed local Chrome. You see the browser directly, without Docker, virtual desktop or noVNC. Kit prepares pinned, checksum-verified runtime assets; first preparation can require a download. Explicit offline mode uses already-prepared assets only.
 
 ```toml
 [browser]
-headless = false    # Headed by default; use true for runs that need no viewer
-# auto_open = false  # Disable automatic opening; it is off by default in CI
-# viewer_port = 19324
+backend = "agent-browser"
+headless = false
 ```
 
-Existing containers do not silently change modes. After active experiments finish, follow the migration prompt to run `browser down`, then `browser up`. See the [visible browser rules](docs/protocol.md#visible-browser).
+A native window is interactive and can be closed by the user. Closing the page can end the session and lose unsaved state; Kit does not silently recreate it or repeat an action. Status/tray can locate an existing owned window; down closes only the selected owned session.
+
+Old Docker/read-only noVNC remains available only through explicit backend="playwright" or browser up --backend playwright. Old ports, image settings, endpoints and containers never select compatibility automatically. Resolve active use and stop the old owned instance before switching; failures never silently fall back. Read `guide echo-workbench --topic browser-compatibility` for old Python helpers only when explicitly needed; use the `browser` topic for native interaction. See [browser behavior](docs/protocol.md#visible-browser).
 
 ## Current guides and upgrade guidance
 
-On first Kit use in an AI session, read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`. Read again when the execution version changes. Each returns a compact Skill, core rules, topic directory, release notes and actual version from one package; use `--topic TOPIC` for details or `--full` for the full protocol and references; JSON and workspace-free reads are supported. Daily calls check the latest release; explicit --offline and offline environment switches stay on the calling package, for actual offline work or selected-package validation. `--version` follows ordinary update routing and reports the version executed for that invocation. `runtime info` diagnoses the local entry; run records remain authoritative for an actual experiment.
+On first use read `echo-kit guide echo-init`, `echo-kit guide echo-lab` or `echo-kit guide echo-workbench`; read again when the actual execution version changes. Guides contain the compact Skill, core rules, topic directory and current release notes from the executing package. Load --topic TOPIC only when needed; --full and export remain available. Explicit --offline stays on the current package. `--version` uses normal update routing; runtime info diagnoses the local entry. Active native sessions retain their real runtime versions; short commands route to the running owner without a network update on every click.
 
-Use `echo-kit updates notes` for this release or `echo-kit updates notes --since 0.5.0` for later bundled history. An upgrade notice does not mean the project has been adapted.
+Use updates notes and updates notes --since VERSION to inspect bundled changes. An upgrade notice is not project adaptation. Frontend debugging defaults to managed native headed Chrome plus agent-browser. Docker/noVNC and external Playwright endpoints require explicit compatibility mode; old image/port/endpoint fields never enable it automatically. Diagnose failures without silently switching backend or adopting personal/external instances.
 
-Prefer the Kit-managed Docker browser and read-only noVNC viewer. Report Docker/build failures instead of falling back to an external endpoint. Existing `browser.endpoint` remains an explicit exception: Kit does not manage its image, display or viewer, or guarantee external viewer read-only access. Read browser up/status capability information; inspect configuration sources and active operations before an authorized configuration change and managed startup. Never stop or adopt the external container.
-
-Project documents hold startup commands, cases, authentication workflows, team rules and environment ownership; private notes hold personal machine facts. Project Skills should point to the CLI guide. Preserve existing project facts and edits when replacing copied generic instructions. Full exports remain available for explicit offline distribution through an empty directory and deliberate comparison/merge.
+Keep project facts, startup commands, cases, authentication workflows, team rules and environment ownership in project documents; personal machine facts stay private. Re-export to an empty directory and merge deliberately while preserving project-owned edits.
 
 ## Windows tray viewer (0.8.0+)
 
-On an interactive Windows desktop, Kit opens a per-session tray while managed services, browsers or local builds and experiments run. Choose the project and Open debugging viewer to reopen the same noVNC view. The tray shows process and container state.
+The Windows tray lists owned services, native browser sessions and explicit compatibility containers. Select the workspace/session to focus its existing native Chrome window; Docker compatibility keeps its noVNC link. Closing the native window can end the page and lose unsaved state; tray actions do not create a new page and pretend it was restored.
 
-`echo-kit tray start` registers the current workspace, including existing owned resources. `echo-kit --json tray status` and `echo-kit tray stop` need no workspace. Stop/Exit closes only the tray. A later startup operation can restore it, but the same operation cannot override a manual dismissal. After all resources are confirmed stopped, the tray exits after a 30-second grace; unknown states retain it. External instances are excluded; headless/legacy browsers have no viewer. CI, noninteractive desktops and `ECHO_KIT_TRAY=0` disable automatic startup. Other platforms keep existing CLI/viewer URLs. No boot service or service watchdog is installed. A restrictive Windows Job can prevent independent UI startup: report the notice and retain the viewer link, without failing the experiment. Windows may place the icon in its overflow area.
+tray start registers this workspace; tray status and tray stop need no workspace. Stopping the tray affects only the UI. Unknown resources remain unknown; all-confirmed-stopped resources trigger the existing 30-second exit grace. CI, noninteractive desktops and ECHO_KIT_TRAY=0 suppress automatic startup. A restrictive Windows Job can prevent independent lifetime; report that limitation honestly. Other platforms retain CLI capabilities; unverified desktop behavior is not claimed.
 
-When memory is low, choose **急停所有工作区** (Emergency stop all workspaces) from the Windows tray menu. One click force-stops this user's local managed services, browsers and tasks. On Windows or Linux, ask the agent explicitly to run `echo-kit emergency stop --all`. The installed command runs locally and skips business saving and cleanup. It cancels older queued starts and admits new launches once it finishes. Restart the tray after installing the new version. See the [emergency stop protocol](docs/protocol.md#emergency-stop).
+The top-level **急停所有工作区** action and emergency stop --all cover owned coordination processes, agent-browser, Chrome, legacy containers, services and tasks. They skip business saving/cleanup and retain uncertain results. Restart the tray after installation to load the new UI. See the [emergency protocol](docs/protocol.md#emergency-stop).
 
 ## On-demand disk reclamation
 
@@ -201,7 +222,7 @@ For confirmed stale reservations, the AI may inspect the operation and recorded 
 
 Choose acceptance by need: prepare services and a business URL for human testing; use compatible interactive browser tools for one-off AI acceptance without mandatory scripts or cases; preserve repeatable experiments when timing, repetition or regression assertions warrant them. noVNC remains view-only. Host interaction support must be verified; browser startup is not acceptance success.
 
-Reuse existing startup, login and acceptance entrypoints instead of rebuilding an environment just to use Kit. Before a full page flow, check browser up/status required_playwright_version against the actual script's imported client, then minimally connect, confirm target identity and necessary login. Fix the failing prerequisite first. Label controlled replies used for page-flow checks; evaluate real model quality separately. Model experiments start with a few representative samples for contracts, units, references and result storage before expanding, and report requests, retries, wall time and usage.
+Reuse existing startup, login and acceptance entrypoints instead of rebuilding an environment just to use Kit. Before a full page flow, confirm the native session, target identity and necessary login. In explicit Playwright compatibility mode, additionally compare required_playwright_version with the client actually imported by that script and make a minimal connection check. Fix the failing prerequisite first. Label controlled replies used for page-flow checks; evaluate real model quality separately. Model experiments start with a few representative samples for contracts, units, references and result storage before expanding, and report requests, retries, wall time and usage.
 
 Use `echo-kit operations list --unfinished` for current work; unfiltered operations list retains all history. `services status NAME...` probes only named services. Internal queries skip process checks for explicitly finished, empty-held history and reuse resource matching and source snapshots within a query, preserving history and reservations. Daily work and guide reads use ordinary commands; --offline and offline environment switches stay on the calling package, for actual offline work or selected-package validation only.
 

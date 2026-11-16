@@ -224,10 +224,94 @@ def describe(result):
             ])}
 
 
-def manage(ws, action):
-    if action == 'up':
-        return _tray_up(ws)
-    return _manage_operation(ws, action)
+LEGACY_FIELDS = ('image', 'port', 'viewer_port', 'endpoint', 'viewer_url', 'auto_open', 'build_timeout', 'timeout')
+
+
+def configuration_sources(ws):
+    configuration = getattr(ws, 'configuration', None)
+    if configuration is None:
+        return []
+    result = []
+    for scope, path, table in [('shared', 'echo-kit.toml', configuration.shared),
+                               ('private', '.echo-kit/local.toml', configuration.local)]:
+        for environment, values in [(None, table), (ws.environment, table.get('environments', {}).get(ws.environment, {}))]:
+            browser = values.get('browser', {})
+            if isinstance(browser, dict) and browser:
+                result.append({'path': path, 'scope': scope, 'environment': environment, 'fields': sorted(browser)})
+    return result
+
+
+def selected_backend(ws, override=None):
+    cfg = ws.cfg.get('browser', {})
+    selected = override or cfg.get('backend')
+    if selected is None and any(k in cfg for k in LEGACY_FIELDS):
+        error = KitError('Legacy browser configuration requires an explicit backend: agent-browser for native migration, '
+                         'or playwright for compatibility. No browser was started.')
+        error.details = {'migration_required': True, 'configuration_sources': configuration_sources(ws),
+                         'legacy_fields': [key for key in LEGACY_FIELDS if key in cfg]}
+        raise error
+    selected = selected or 'agent-browser'
+    if selected not in ('agent-browser', 'playwright'):
+        raise KitError('browser.backend must be agent-browser or playwright')
+    return selected
+
+
+def manage(ws, action, *, backend=None, **options):
+    from . import native_sessions
+    configured = ws.cfg.get('browser', {}).get('backend')
+    if action == 'up' and backend is None and configured == 'playwright':
+        backend = configured
+    if action == 'status' and backend is None:
+        native = native_sessions.manage(ws, 'status', sid=options.get('sid'))
+        if configured == 'playwright' or (ws.state / 'browser.json').exists() or ws.cfg.get('browser', {}).get('endpoint'):
+            legacy = _legacy_manage(ws, 'status')
+            if native['sessions']:
+                return {**native, 'legacy': legacy}
+            return {**legacy, 'backend': 'playwright'}
+        return native
+    if action == 'down' and backend is None:
+        if (options.get('sid') or any(native_sessions.inspect_record(r)['state'] != 'stopped'
+                                     for r in native_sessions.records(ws))):
+            return native_sessions.manage(ws, action, sid=options.pop('sid', None))
+        if configured == 'playwright' or (ws.state / 'browser.json').exists() or ws.cfg.get('browser', {}).get('endpoint'):
+            return {**_legacy_manage(ws, action), 'backend': 'playwright'}
+        return {'status': 'stopped', 'backend': 'agent-browser'}
+    selected = selected_backend(ws, backend)
+    if selected == 'playwright':
+        if action == 'up' and any(native_sessions.inspect_record(r)['state'] != 'stopped' for r in native_sessions.records(ws)):
+            raise KitError('Finish and close native sessions before switching this workspace to compatibility mode')
+        return {**_legacy_manage(ws, action), 'backend': 'playwright'}
+    if action == 'up' and (ws.state / 'browser.json').exists():
+        old = _legacy_manage(ws, 'status')
+        if old.get('status') not in ('stopped', 'missing'):
+            raise KitError('Stop the existing owned compatibility browser explicitly before starting native mode')
+    # The explicit selection is propagated to the worker without changing project configuration.
+    original = ws.cfg.get('browser', {})
+    ws.cfg['browser'] = {**original, 'backend': selected}
+    try:
+        return native_sessions.manage(ws, action, **options)
+    finally:
+        ws.cfg['browser'] = original
+
+
+def _legacy_manage(ws, action):
+    previous = ws.cfg.get('browser', {})
+    ws.cfg['browser'] = {**previous, 'backend': 'playwright'}
+    if action in ('status', 'down') and (ws.state / 'browser.json').exists():
+        # A later endpoint override cannot hide an already owned container.
+        ws.cfg['browser'].pop('endpoint', None)
+    try:
+        if action == 'up':
+            from filelock import FileLock
+            from .native_sessions import records, inspect_record
+            ws.state.mkdir(parents=True, exist_ok=True)
+            with launches.launch_lock(FileLock(str(ws.state / 'browser-mode.lock'), timeout=600)):
+                if any(inspect_record(r)['state'] != 'stopped' for r in records(ws)):
+                    raise KitError('Finish and close native sessions before switching this workspace to compatibility mode')
+                return _tray_up(ws)
+        return _manage_operation(ws, action)
+    finally:
+        ws.cfg['browser'] = previous
 
 
 from .tray import startup_scope, notify

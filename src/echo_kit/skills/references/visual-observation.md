@@ -1,88 +1,67 @@
-# Fast visual observation
+# Fast native observation and interaction
 
-Use this entry when iterating on a page's appearance. It prepares requested services and a managed Docker browser once, then preserves its own page, login state, open dialogs and unsaved input across observations. Human acceptance still uses the business frontend URL. Read the browser topic before starting.
+Use short native commands for one-off page debugging. Use a retained observe pipe when the host already supports persistent stdin/stdout. Both use a real Kit session worker that owns service reservations and supervises its own Chrome and fixed agent-browser. Native headed Chrome is the default; Docker/noVNC and Python callbacks are explicit Playwright compatibility only. Do not create a case or permanent control script merely to inspect a page.
 
-## CLI session
+## Short commands
 
 ```sh
-echo-kit --workspace PATH --actor visual browser observe --url BROWSER_REACHABLE_URL --service web
-echo-kit --workspace PATH browser observe --url BROWSER_REACHABLE_URL --service web --auth test --adapter echo/visual.py
+echo-kit --workspace PATH --actor visual browser up --url http://localhost:5173 --service web
+echo-kit --workspace PATH --actor visual browser exec -- snapshot -c
+echo-kit --workspace PATH --actor visual browser exec -- click @e1
+echo-kit --workspace PATH --actor visual browser exec -- screenshot
+echo-kit --workspace PATH --actor visual browser down
 ```
 
-Repeat `--service` for additional services. Their dependencies are included. Select only services this page uses. The URL must be reachable from Docker, including the effective private port assignment. An existing external browser endpoint requires an explicit project decision before using this managed-only entry. The initial viewport is 1440×900. `--timeout-ms` defaults to 10000 and accepts 1..120000.
+Select only services this page uses; dependencies are included. Reuse existing auth adapters and startup entrypoints. Use a distinct actor for concurrent agents and --session ID only for an explicitly owned session. Native URLs are host-reachable URLs; do not blindly substitute Docker host.docker.internal addresses. The local headed window is interactive, not a read-only viewer; user input or closing it can affect the experiment. A lost page is reported, not recreated and re-executed.
 
-The command remains alive and exchanges JSON lines regardless of `--json`. Startup emits a `ready` event with the executing version, `python_executable`, operation ID, output directory, viewer URL and reply file. Progress goes to stderr. Choose a new nonempty string `id` for every request.
+Supported commands are a bounded subset: navigation, snapshots, click/fill, get text/box/styles/url, readiness waits and screenshots. This is not arbitrary upstream CLI passthrough: runtime installation/upgrades, personal auto-connect, foreign session/profile selection and backend changes are not session actions. Existing-session short actions route to the running owner without a network version check per click. A session keeps its actual Kit/agent-browser/Chrome versions; new sessions use ordinary update routing.
+
+Sensitive input goes through private stdin/IPC and existing authentication channels, never argv, shared configuration or ordinary reports. Do not use raw fill arguments for passwords. Authentication state is opaque: only explicitly supported validated cookie/localStorage formats can be imported, otherwise use the project's established login entrypoint. Personal browser state is never inherited. A successful login does not prove role/tenant authorization.
+
+## Persistent protocol 1
+
+```sh
+echo-kit --workspace PATH --actor visual browser observe --url http://localhost:5173 --service web
+```
+
+The command remains alive and exchanges JSON lines regardless of --json. Progress goes to stderr. Startup returns ready, actual versions/backend, operation/session identity, output directory and reply file. Each request needs a fresh nonempty id; read/display only current matching image paths. Initial viewport is 1440×900; timeout defaults 10000ms and accepts 1..120000.
 
 ```json
-{"op":"observe","id":"1"}
-{"op":"observe","id":"2","target":"#panel","capture":"element"}
-{"op":"observe","id":"3","viewports":[{"width":1440,"height":900},{"width":390,"height":844}]}
-{"op":"reload","id":"4"}
-{"op":"navigate","id":"5","url":"BROWSER_REACHABLE_URL"}
-{"op":"close","id":"6"}
+{"op":"observe","id":"o1"}
+{"op":"observe","id":"o2","target":"#panel","capture":"element"}
+{"op":"exec","id":"a1","command":["snapshot","-c"]}
+{"op":"exec","id":"a2","command":["click","@e1"]}
+{"op":"reload","id":"r1"}
+{"op":"navigate","id":"n1","url":"http://localhost:5173/details"}
+{"op":"close","id":"c1"}
 ```
 
-`observe` captures the current page. It waits for fonts, visible images and short layout stability without waiting for network idle. HMR readiness and business-state readiness can be supplied by the project. Explicit reload/navigation changes page state. CSS changes become visible through the project's normal hot update, or after an explicit reload. Observing alone does not establish that a new bundle was loaded.
+Default observe keeps current state; navigation/reload is explicit. HMR should follow the project's actual dev server; a capture alone does not prove new code loaded. Native screenshots can capture selected main-document CSS regions without scrolling the page. Explicit multi-viewport capture restores the original viewport; responsive application code can still react to requested resize events. At most four views are allowed, dimensions 240..2560.
 
-Targets must identify one visible CSS element. `capture` defaults to `viewport`; `element` requires a target. A target is scrolled into view. Up to four custom viewports are captured sequentially on the owned page, then its original viewport is restored. Responsive application code can react to these changes. Dimensions accept integers 240..2560. Animations remain enabled. Set `"animations":"disabled"` deliberately for a stable capture and report that choice.
+Capture replies include current observation identity, paths/hashes, viewport and bounded diagnostics/timing. `status: ok` means capture completed; visual quality and business checks need evidence. Images are empty on request failure; never substitute a previous response. For fixed HTML/URL references and Markdown provenance, read the [visual comparison reference](visual-comparison.md).
 
-Responses include an observation ID, timestamp, public URL, image paths/hashes, viewport, limited diagnostics and readiness/screenshot/file-read times. URL query values are omitted. Diagnostics report bounded geometry/font data, visible image/font failures, overflow and error counts. Project code can add thresholds or declared non-overlapping regions. Error counts are cumulative within this page session. Successful capture reports `status: ok`; assess visual quality from the image. When observation fails, `images` is empty, including a later failure in a multi-viewport request. Read only images named by the current matching response.
+With a configured reference, `browser exec --session ID --page reference -- snapshot -c` explicitly opens and retains the isolated reference page for interaction. Its handles and authentication are separate from the target; normal reference capture remains temporary. Read the visual topic before selecting regions or freezing a baseline.
 
-## Project adapter
+## Runtime and failure boundaries
 
-The CLI starts an optional Python script as a tracked subprocess using the executing Kit interpreter. Project code imports the helper and owns its business rules.
+Kit uses the pinned native binary only as a controlled daemon attached to Kit's existing owned Chrome, through a fixed-version contract adapter. It does not let the upstream CLI create/restart arbitrary daemons or browsers. Each action is sent once; a sent request with an unknown result returns outcome_unknown and retains evidence. It must not be replayed to obtain an answer. Window, tab, daemon or Chrome loss requires explicit new startup; no silent personal-browser, Docker or headless fallback.
 
-```python
-from echo_kit.observation import serve_observer
+close/down saves labelled native Chrome/CDP traceEvents JSON and ends only the owned session, then releases confirmed local reservations. It does not stop reusable microservices or certify business cleanup. Native trace is not Playwright trace.zip and cannot be presented as compatible with the old Trace Viewer. Emergency covers worker, native daemon, Chrome and pending starts; stale occupancy is resolved only after process identity checks and with the existing reason note.
 
-def prepare(page, options, auth):
-    # Runs once after initial navigation. Apply the project's login/page setup here.
-    # auth is private state returned by the selected existing auth adapter.
-    # page.context belongs only to this worker.
-    return {"data": "controlled", "purpose": "layout review"}
+Screenshots, receipts and traces can contain business data. Keep them in ignored, untracked .echo-kit/observations under the existing operation and storage unit. Active/pending evidence is protected; keep marks and explicit disk reclamation continue to apply. A reclaimed or missing picture is not an available successful result.
 
-def ready(page, request):
-    page.locator("[data-page-ready]").wait_for()
+## Explicit Playwright compatibility
 
-def diagnose(page, request):
-    return {"business_ready": page.locator("[data-page-ready]").count() == 1}
+For a project that deliberately needs its old browser.session helper, Playwright adapter callbacks or trace.zip, choose backend="playwright" in configuration or the startup --backend flag. Old image/port/viewer_port/endpoint fields and an existing container never choose it automatically. Before changing backend inspect actual registrations/occupancy and stop the old owned instance explicitly; do not stop or adopt external endpoints.
 
-serve_observer(prepare=prepare, ready=ready, diagnose=diagnose)
-```
+The previous prepare(page, options, auth), ready(page, request), diagnose(page, request) and serve_observer adapter workflow is compatibility-only. Read [the compatibility helper](interactive-session.md) only when that backend is selected. Check the Playwright actually imported by that interpreter against required_playwright_version. Docker failure does not select an external endpoint, and native failure does not select compatibility automatically.
 
-All callbacks are optional. `prepare` returns small descriptive annotations included with captures. `ready` and `diagnose` run per captured viewport. Requests may include an `options` object for project-specific choices. Keep cookies, tokens, input values and response bodies out of returned annotations/diagnostics. Metadata is limited to 32 KiB. The initial authentication state can contain Playwright `cookies`/`origins`, or a `storage_state` object. Other authentication formats require a prepare hook. Prepare identities through the existing explicit account preparation flow.
+## Host image delivery
 
-Request interception, reduced motion, test data, language and target-specific readiness remain explicit project choices. Label synthetic or isolated states. Use existing cleanup evidence before any asynchronous business work. The hook can call `Journal().update(options['operation_id'], requires_resolution=True)` before such work and clear it only after verified business completion. Shared service leases do not isolate data. Operations requiring exclusive service access use the existing project experiment/cleanup workflow.
-
-## One tool call to receive and show images
-
-Export the installed resources with `echo-kit skills export EMPTY_DIR`. The export includes [the Node pipe client](observe-client.mjs). In a persistent Node execution tool with subprocess access, import that file and retain the returned client.
-
-```javascript
-var { openObserver } = await import('file:///ABSOLUTE_EXPORT_DIR/references/observe-client.mjs');
-var visual = await openObserver({ workspace: workspacePath, url: browserReachableUrl, services: ['web'] });
-var fs = await import('node:fs/promises');
-var result = await visual.observe({ target: '#panel', capture: 'element' });
-nodeRepl.write({ status: result.status, captures: result.captures, error: result.error });
-for (var path of result.images) {
-  await nodeRepl.emitImage({ bytes: await fs.readFile(path), mimeType: 'image/png' });
-}
-// At the end of this work session
-nodeRepl.write(await visual.close());
-```
-
-The host must support persistent subprocesses and image display. Host tool delivery, model image processing and AI reasoning have their own cost. Worker timings exclude them. No fixed cross-machine latency is guaranteed.
-
-For command-only hosts, start the CLI with a retained process session. Windows PTY consumers can request a screenshot over that session's stdin, then run the following with a Python interpreter containing this Kit package and display the returned image paths in the same host tool invocation.
+The bundled [observe-client.mjs](observe-client.mjs) supports persistent pipe hosts. It keeps request IDs and current-image checks; the host still needs subprocess access and local image display. A normal shell host may instead call short browser exec commands and display their artifact paths. Windows retained PTY clients can use the existing matching receipt reader with the ready event's actual Python interpreter:
 
 ```sh
 python -m echo_kit.observation --read-reply REPLY_FILE --request-id NEW_REQUEST_ID --timeout-ms 30000
 ```
 
-Use the actual ready event's `python_executable` and reply file, with a fresh matching ID. This also selects the right interpreter after CLI update forwarding. A timeout is a failure. The reader never substitutes an older receipt.
-
-## Ownership and handoff
-
-The supervisor holds existing service/browser reservations and tracks its worker and descendants. Emergency stop cancels old admission generations and kills workers even while they wait for input. `close` or stdin EOF closes this session's context/connection, writes trace and releases confirmed reservations. Failed cleanup or pending business work retains the operation for inspection. Services and the browser remain reusable.
-
-Images, receipts, worker diagnostics and traces are stored under ignored, untracked `.echo-kit/observations/OPERATION_ID/`. Traces/screenshots can contain business data. Ordinary replies exclude credentials and full request/response bodies. This session has operation/observation IDs and does not create a case run or formal run report. At handoff show key images with captions and state what was actually checked. Validate business correctness, real model behavior and build/export output as required by the task.
+A timeout is a failure. Worker measurements exclude host file delivery, model image processing and AI reasoning. Platform/desktop and authentication limitations must be stated from actual validation, not inferred from runtime installation.

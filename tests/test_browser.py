@@ -9,11 +9,13 @@ from echo_kit import browser
 @pytest.fixture
 def ws(tmp_path):
     init_workspace(tmp_path)
-    return Workspace(tmp_path)
+    value = Workspace(tmp_path)
+    value.cfg['browser'] = {'backend': 'playwright'}
+    return value
 
 
 def test_external_never_removed(ws, monkeypatch):
-    ws.cfg['browser'] = {'endpoint': 'ws://external:3000/'}
+    ws.cfg['browser'] = {'backend': 'playwright', 'endpoint': 'ws://external:3000/'}
     monkeypatch.setattr(browser, 'docker', lambda *args: pytest.fail('External browser must not call Docker'))
     monkeypatch.setattr(browser, 'connect_check', lambda endpoint: None)
     assert browser.manage(ws, 'up')['mode'] == 'external'
@@ -28,7 +30,7 @@ def test_wrong_owner_and_missing_container(ws, monkeypatch):
 
 
 def test_version_rejected_before_launch(ws):
-    ws.cfg['browser'] = {'image': 'mcr.microsoft.com/playwright:v0.1.0-noble'}
+    ws.cfg['browser'] = {'backend': 'playwright', 'image': 'mcr.microsoft.com/playwright:v0.1.0-noble'}
     with pytest.raises(KitError, match='version'):
         browser.manage(ws, 'up')
 
@@ -81,7 +83,7 @@ def test_headed_loopback_readonly_and_open_only_once(ws, runtime, monkeypatch):
 
 
 def test_headless_has_no_viewer_or_open(ws, runtime, monkeypatch):
-    ws.cfg['browser'] = {'headless': True}
+    ws.cfg['browser'] = {'backend': 'playwright', 'headless': True}
     monkeypatch.setattr(browser.webbrowser, 'open', lambda *a, **kw: pytest.fail('headless opened viewer'))
     monkeypatch.setattr(browser, 'viewer_check', lambda *a: pytest.fail('headless checked viewer'))
     result = browser.manage(ws, 'up')
@@ -104,7 +106,7 @@ def test_ci_and_explicit_auto_open(ws, runtime, monkeypatch):
     monkeypatch.setenv('CI', 'true')
     monkeypatch.setattr(browser.webbrowser, 'open', lambda *a, **kw: pytest.fail('CI opened viewer'))
     assert not browser.manage(ws, 'up').get('viewer_open_attempted')
-    ws.cfg['browser'] = {'auto_open': True}
+    ws.cfg['browser'] = {'backend': 'playwright', 'auto_open': True}
     monkeypatch.setattr(browser.webbrowser, 'open', lambda *a, **kw: True)
     assert browser.manage(ws, 'up')['viewer_opened']
 
@@ -117,9 +119,9 @@ def test_legacy_and_changed_mode_require_explicit_rebuild(ws, runtime):
         browser.manage(ws, 'up')
     assert not any(c[0] in ('run', 'start', 'rm') for c in runtime)
     browser.manage(ws, 'down')
-    ws.cfg['browser'] = {'headless': True}
+    ws.cfg['browser'] = {'backend': 'playwright', 'headless': True}
     browser.manage(ws, 'up')
-    ws.cfg['browser'] = {'headless': False, 'auto_open': False}
+    ws.cfg['browser'] = {'backend': 'playwright', 'headless': False, 'auto_open': False}
     with pytest.raises(KitError, match='configuration/runtime'):
         browser.manage(ws, 'up')
     assert browser.manage(ws, 'status')['headless'] is True
@@ -128,7 +130,7 @@ def test_legacy_and_changed_mode_require_explicit_rebuild(ws, runtime):
 @pytest.mark.parametrize('config', [{'headless': 'false'}, {'port': 0}, {'viewer_port': True},
                                     {'port': 19324}, {'auto_open': 'yes'}, {'timeout': float('inf')}])
 def test_bad_config_has_no_docker_side_effect(ws, monkeypatch, config):
-    ws.cfg['browser'] = config
+    ws.cfg['browser'] = {'backend': 'playwright', **config}
     monkeypatch.setattr(browser, 'docker', lambda *a, **kw: pytest.fail('invalid config called Docker'))
     with pytest.raises(KitError):
         browser.manage(ws, 'up')
@@ -139,7 +141,7 @@ def test_viewer_port_occupied_before_build(ws, monkeypatch):
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         sock.listen()
-        ws.cfg['browser'] = {'viewer_port': sock.getsockname()[1]}
+        ws.cfg['browser'] = {'backend': 'playwright', 'viewer_port': sock.getsockname()[1]}
         monkeypatch.setattr(browser, 'prepare_image', lambda *a: pytest.fail('must check ports before build'))
         with pytest.raises(KitError, match='port occupied'):
             browser.manage(ws, 'up')
@@ -158,7 +160,7 @@ def test_viewer_resource_blocks_other_workspace_and_down(ws, runtime):
 
 
 def test_external_viewer_is_informational(ws, monkeypatch):
-    ws.cfg['browser'] = {'endpoint': 'ws://external:3000', 'viewer_url': 'https://example.test/view'}
+    ws.cfg['browser'] = {'backend': 'playwright', 'endpoint': 'ws://external:3000', 'viewer_url': 'https://example.test/view'}
     monkeypatch.setattr(browser, 'connect_check', lambda *a: None)
     monkeypatch.setattr(browser, 'docker', lambda *a, **kw: pytest.fail('external uses Docker'))
     monkeypatch.setattr(browser.webbrowser, 'open', lambda *a, **kw: pytest.fail('external auto-open'))
@@ -175,7 +177,7 @@ def test_image_key_changes_with_base_or_resources(monkeypatch):
 
 
 def test_viewer_failure_retains_container_without_auto_open(ws, runtime, monkeypatch):
-    ws.cfg['browser'] = {'timeout': .01}
+    ws.cfg['browser'] = {'backend': 'playwright', 'timeout': .01}
     def fail(url):
         raise KitError('viewer transport unavailable')
     monkeypatch.setattr(browser, 'viewer_check', fail)
@@ -215,7 +217,7 @@ def test_verify_persists_browser_metadata(ws, monkeypatch):
     from echo_kit.core import read
     metadata = {'endpoint': 'ws://127.0.0.1:19323/', 'headless': False,
                 'viewer_url': 'http://127.0.0.1:19324/vnc.html', 'viewer_read_only': True}
-    monkeypatch.setattr(runner, 'manage', lambda *args: metadata)
+    monkeypatch.setattr(runner, 'manage', lambda *args, **kwargs: metadata)
     ws.cfg['cases'] = {'web': {'browser': True, 'command': [sys.executable, '-c', 'pass'], 'protocol': 'command'}}
     record, = runner.run(ws, 'web', 'verify')
     assert record['status'] == 'passed' and record['browser'] == metadata
@@ -227,7 +229,7 @@ def test_verify_persists_browser_metadata(ws, monkeypatch):
 @pytest.mark.parametrize('action', ['up', 'status'])
 def test_external_capability_context(ws, monkeypatch, fails, action):
     from echo_kit import __version__
-    ws.cfg['browser'] = {'endpoint': 'ws://external:3000/', 'viewer_url': 'http://external/view'}
+    ws.cfg['browser'] = {'backend': 'playwright', 'endpoint': 'ws://external:3000/', 'viewer_url': 'http://external/view'}
     monkeypatch.setattr(browser, 'docker', lambda *a: pytest.fail('external called Docker'))
     def connect(endpoint):
         if fails:

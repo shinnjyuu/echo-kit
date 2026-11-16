@@ -22,7 +22,7 @@ def setup_worker(tmp_path, monkeypatch, body=''):
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
     ws = Workspace(tmp_path)
     ws.startup_progress = False
-    ws.cfg['browser'] = {'headless': True}
+    ws.cfg['browser'] = {'backend': 'playwright', 'headless': True}
     state = {'id': 'a' * 64, 'endpoint': 'ws://127.0.0.1:19323/', 'viewer_url': None}
     save(ws.state / 'browser.json', state)
     monkeypatch.setattr(browser, 'manage', lambda *_: state)
@@ -162,7 +162,7 @@ def test_project_exception_does_not_echo_private_auth(tmp_path, monkeypatch, cap
     settings = {'generation': launches.gate(), 'operation_id': oid, 'endpoint': 'ws://fixture',
                 'url': 'http://fixture', 'output': str(tmp_path), 'timeout_ms': 20,
                 'auth': {'token': private_value}}
-    page = SimpleNamespace(set_viewport_size=lambda *_: None, goto=lambda *_args, **_kwargs: None)
+    page = SimpleNamespace(set_viewport_size=lambda *_: None, goto=lambda *_args, **_kwargs: None, on=lambda *_: None)
     @contextmanager
     def context(*_):
         yield SimpleNamespace(set_default_timeout=lambda *_: None,

@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
-export async function openObserver({ workspace, url, services = [], auth, adapter, actor,
+export async function openObserver({ workspace, url, services = [], auth, adapter, actor, reference, referenceRoot, spec,
   timeoutMs = 10000, startupTimeoutMs = 900000, executable = 'echo-kit' }) {
   const args = ['--workspace', workspace];
   if (actor) args.push('--actor', actor);
@@ -10,6 +10,9 @@ export async function openObserver({ workspace, url, services = [], auth, adapte
   for (const name of services) args.push('--service', name);
   if (auth) args.push('--auth', auth);
   if (adapter) args.push('--adapter', adapter);
+  if (reference) args.push('--reference', reference);
+  if (referenceRoot) args.push('--reference-root', referenceRoot);
+  if (spec) args.push('--spec', spec);
   const child = spawn(executable, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let sequence = 0, closed = false, broken = false, chain = Promise.resolve();
   const exited = new Promise((resolve, reject) => {
@@ -57,6 +60,10 @@ export async function openObserver({ workspace, url, services = [], auth, adapte
   }
   return { startup,
     observe: options => send('observe', options),
+    exec: (command, options = {}) => send('exec', { ...options, command }),
+    inspect: options => send('inspect', options),
+    reference: options => send('reference', options),
+    compare: options => send('compare', options),
     navigate: url => send('navigate', { url }),
     reload: () => send('reload'),
     async close() {

@@ -87,11 +87,21 @@ def service_resources(ws, names, builds=True, access='exclusive'):
 
 def browser_resource(ws):
     cfg = ws.cfg.get('browser', {})
+    if cfg.get('backend', 'agent-browser') == 'agent-browser':
+        from .native_sessions import session_key
+        return native_browser_resource(ws, session_key(ws))
     return endpoint(url=cfg['endpoint']) if cfg.get('endpoint') else endpoint(port=cfg.get('port', 19323))
+
+
+def native_browser_resource(ws, session_id):
+    """Stable native identity; no dependence on legacy Docker viewer/control ports."""
+    return 'native-browser:' + ws.identity + ':' + safe_name(session_id)
 
 
 def browser_resources(ws):
     keys = {browser_resource(ws): 'shared'}
+    if ws.cfg.get('browser', {}).get('backend', 'agent-browser') == 'agent-browser':
+        return keys
     if not ws.cfg.get('browser', {}).get('endpoint'):
         state = read(ws.state / 'browser.json', {})
         cfg = ws.cfg.get('browser', {})

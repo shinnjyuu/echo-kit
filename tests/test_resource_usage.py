@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import psutil
 import pytest
 
-from echo_kit import cli, resource_usage as usage, workspace_index
+from echo_kit import __version__, cli, resource_usage as usage, workspace_index
 from echo_kit.core import KitError, Workspace, init_workspace, read, save
 from echo_kit.operations import Journal, data_root
 from echo_kit.processes import fingerprint
@@ -293,7 +293,7 @@ def test_cli_all_no_workspace_single_json_and_table(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(cli, 'Workspace', lambda *a: pytest.fail('--all must not load configuration'))
     assert cli.main(['--json', 'resources', 'status', '--all']) == 0
     result = json.loads(capsys.readouterr().out)
-    assert result['total'] == 0 and result['tool_version'] == '0.15.0'
+    assert result['total'] == 0 and result['tool_version'] == __version__
     assert cli.main(['resources', 'status', '--all']) == 0
     assert 'RSS' in capsys.readouterr().out
 

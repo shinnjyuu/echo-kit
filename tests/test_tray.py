@@ -52,7 +52,8 @@ def test_snapshot_is_read_only_and_batches_docker(ws, monkeypatch):
 
 @pytest.mark.parametrize('mode', ['wrong_owner', 'missing', 'timeout', 'headless', 'legacy', 'external'])
 def test_container_boundaries(ws, monkeypatch, mode):
-    browser(ws, **({'headless': True} if mode == 'headless' else {'runtime_version': -1} if mode == 'legacy' else {}))
+    if mode != 'external':
+        browser(ws, **({'headless': True} if mode == 'headless' else {'runtime_version': -1} if mode == 'legacy' else {}))
     if mode == 'external':
         ws.cfg['browser'] = {'endpoint': 'ws://external:3000'}
     tray.register(ws)

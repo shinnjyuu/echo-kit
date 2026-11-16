@@ -1,6 +1,8 @@
-# Temporary interactive acceptance
+# Temporary Playwright compatibility acceptance
 
-This is a reference using existing Python helpers, not a new CLI or a mandatory project adapter. Load the function in a compatible persistent Python execution tool; keep the `with` block and process alive across actions. Host tools that cannot preserve this lifecycle are not automatically supported. Do not create a permanent case just to use this example.
+Read `echo-kit guide echo-workbench --topic browser-compatibility` only after explicitly selecting the Playwright backend. Native interaction uses the separate `browser` topic.
+
+This reference is only for explicitly selected browser.backend="playwright". Native daily interaction uses browser up/exec or observe without a permanent script; do not follow this Python helper merely because an old project contains it. This is a reference using existing Python helpers, not a new CLI or a mandatory project adapter. Load the function in a compatible persistent Python execution tool; keep the `with` block and process alive across actions. Host tools that cannot preserve this lifecycle are not automatically supported. Do not create a permanent case just to use this example.
 
 Prepare only needed services and the managed browser first, within authorization. Check readiness and authentication using existing project capabilities. Supply the actual workspace and all services used by the interaction; dependencies are included. The example does not start services or create accounts. For manual testing provide the business frontend URL instead, without this session or a Docker requirement.
 

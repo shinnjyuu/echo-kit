@@ -5,7 +5,7 @@ import json
 import sys
 import time
 import uuid
-from contextlib import redirect_stdout
+from contextlib import ExitStack, redirect_stdout
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
@@ -51,10 +51,10 @@ def secret_strings(value):
     return [value] if isinstance(value, str) and len(value) >= 4 else []
 
 
-def clean(value, secrets):
+def clean(value, secrets, max_bytes=32768):
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
-    if len(encoded.encode('utf-8')) > 32768:
-        raise KitError('Project observation metadata exceeds 32 KiB')
+    if len(encoded.encode('utf-8')) > max_bytes:
+        raise KitError('Observation metadata exceeds ' + str(max_bytes // 1024) + ' KiB; narrow the request')
     for secret in secrets:
         encoded = encoded.replace(json.dumps(secret, ensure_ascii=False)[1:-1], '[redacted]')
     return json.loads(encoded)
@@ -64,8 +64,8 @@ def validate(request):
     if request_id(request) is None:
         raise KitError('Each request requires a nonempty string id of at most 128 characters')
     op = request.get('op')
-    if op not in ('observe', 'navigate', 'reload', 'close'):
-        raise KitError('Supported operations are observe, navigate, reload and close')
+    if op not in ('observe', 'navigate', 'reload', 'close', 'inspect', 'reference', 'compare'):
+        raise KitError('Supported operations are observe, navigate, reload, close, inspect, reference and compare')
     if op == 'navigate':
         url(request.get('url'))
     target = request.get('target')
@@ -84,6 +84,37 @@ def validate(request):
         if not isinstance(view, dict) or any(type(view.get(key)) is not int or not 240 <= view[key] <= 2560
                                              for key in ('width', 'height')):
             raise KitError('Viewport width and height must be integers between 240 and 2560')
+    if op in ('inspect', 'reference', 'compare'):
+        if 'reload' in request and (op != 'reference' or type(request['reload']) is not bool):
+            raise KitError('Only reference accepts a boolean reload option; actual-page reload is a separate explicit operation')
+        if request.get('page', 'target') not in ('target', 'reference'):
+            raise KitError('page must be target or reference')
+        if type(request.get('limit', 20)) is not int or not 1 <= request.get('limit', 20) <= 20:
+            raise KitError('inspect limit must be an integer between 1 and 20; narrow the selector')
+        if not isinstance(request.get('state', 'default'), str) or len(request.get('state', 'default')) > 128:
+            raise KitError('state must be a label of at most 128 characters')
+        for field in ('regions', 'exclude'):
+            values = request.get(field, [])
+            if not isinstance(values, list) or len(values) > 10:
+                raise KitError(field + ' must contain at most ten items; narrow the request')
+            identities = set()
+            for item in values:
+                if not isinstance(item, dict) or any(not isinstance(item.get(k), str) or not item[k].strip()
+                                                      or len(item[k]) > 512 for k in ('reference', 'target')):
+                    raise KitError(field + ' requires reference and target CSS selectors')
+                if field == 'regions':
+                    name = item.get('id')
+                    if not isinstance(name, str) or not name or len(name) > 128 or name in identities:
+                        raise KitError('Region ids must be unique nonempty labels of at most 128 characters')
+                    identities.add(name)
+        if op == 'compare':
+            if not isinstance(request.get('baseline_id'), str) or not request['baseline_id']:
+                raise KitError('compare requires baseline_id from an explicit reference request')
+            if any(key in request for key in ('regions', 'exclude', 'viewports', 'animations')):
+                raise KitError('compare uses fixed baseline regions, exclusions, viewports and animation settings')
+            value = request.get('threshold', .1)
+            if type(value) not in (int, float) or not 0 <= value <= 1:
+                raise KitError('threshold must be a finite number between 0 and 1')
     return op
 
 
@@ -96,9 +127,11 @@ class Observer:
         self.secrets = secret_strings(settings.get('auth'))
         self.annotations = clean(annotations or {}, self.secrets)
         self.errors = {'page_errors': 0, 'console_errors': 0, 'failed_requests': 0}
+        self.visual = None
         page.on('pageerror', lambda *_: self.count('page_errors'))
         page.on('console', lambda item: self.count('console_errors') if item.type == 'error' else None)
         page.on('requestfailed', lambda *_: self.count('failed_requests'))
+        page.on('response', lambda response: self.count('failed_requests') if response.status >= 400 else None)
 
     def count(self, key):
         self.errors[key] += 1
@@ -130,10 +163,19 @@ class Observer:
                         self.page.set_viewport_size(view)
                     captures.append(self.capture(request, observation_id, index))
                 result.update(captures=captures, images=[item['path'] for item in captures])
+            elif op in ('inspect', 'reference', 'compare'):
+                if self.visual is None:
+                    from .visual import Visual
+                    self.visual = Visual(self)
+                result.update(clean(self.visual.dispatch(request, observation_id), self.secrets, MAX_LINE - 1024))
             result.update(status='ok', url=public_url(self.page.url), annotations=self.annotations)
+            if len(json.dumps(result, ensure_ascii=False).encode('utf-8')) > MAX_LINE - 1024:
+                raise KitError('Visual response exceeds 256 KiB; request fewer regions or viewports')
         except Exception as error:
             # Runtime exceptions can contain page data, URLs or adapter credentials.
             result.update(error={'code': 'observation_failed', 'type': type(error).__name__}, images=[], captures=[])
+            if result['op'] in ('inspect', 'reference', 'compare'):
+                result['verification'] = 'unverified'
             if isinstance(error, KitError):
                 result['error']['message'] = clean(str(error), self.secrets)
         finally:
@@ -181,11 +223,13 @@ class Observer:
                 'screenshot': round(screenshot_ms, 2), 'file_read': round((time.monotonic() - read_started) * 1000, 2)}}
 
 
-def serve_observer(*, prepare=None, ready=None, diagnose=None):
+def serve_observer(*, prepare=None, ready=None, diagnose=None, prepare_reference=None, ready_reference=None):
     """Run in the supervised worker. Hooks receive only this session's page.
 
     prepare(page, options, auth) runs once and may return descriptive annotations.
     ready(page, request) and diagnose(page, request) run before every capture.
+    prepare_reference(page, options) and ready_reference(page, request) are optional;
+    the reference context never inherits target authentication.
     Project adapters can mark pending business work using options['operation_id'].
     """
     wire, incoming = sys.stdout, sys.stdin
@@ -200,17 +244,26 @@ def serve_observer(*, prepare=None, ready=None, diagnose=None):
                 if prepare is None:
                     raise KitError('This authentication state requires a project prepare hook')
                 storage = None
-            with browser.session(settings['endpoint'], settings['output'], storage) as context:
+            with ExitStack() as stack:
+                context = stack.enter_context(browser.session(settings['endpoint'], settings['output'], storage))
                 context.set_default_timeout(settings['timeout_ms'])
                 context.set_default_navigation_timeout(settings['timeout_ms'])
                 page = context.new_page()
                 page.set_viewport_size({'width': 1440, 'height': 900})
+                observer = Observer(page, settings, ready, diagnose)
                 response = page.goto(settings['url'], wait_until='domcontentloaded')
                 if response and response.status >= 400:
                     raise KitError('Initial URL returned an HTTP error')
                 annotations = prepare(page, settings, settings.get('auth')) if prepare else None
-                observer = Observer(page, settings, ready, diagnose, annotations)
+                observer.annotations = clean(annotations or {}, observer.secrets)
+                if settings.get('visual', {}).get('reference'):
+                    from .visual import Visual, reference_context
+                    reference, local = stack.enter_context(reference_context(context, page, settings, prepare_reference))
+                    observer.visual = Visual(observer, reference, local, ready_reference, prepare_reference)
                 emit({'protocol': 1, 'event': 'ready', 'status': 'ready', 'version': __version__,
+                      'capabilities': ['observe', 'navigate', 'reload', 'close', 'inspect', 'reference', 'compare'],
+                      'visual': {key: ({k: v for k, v in value.items() if k in ('kind', 'source')} if key == 'reference' else value)
+                                 for key, value in settings.get('visual', {}).items() if key in ('reference', 'spec')},
                       'operation_id': settings['operation_id'], 'output_dir': settings['output'],
                       'reply_file': str(Path(settings['output']) / 'latest.json'),
                       'url': public_url(page.url), 'viewer_url': settings.get('viewer_url')}, wire)

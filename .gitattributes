@@ -1,0 +1,2 @@
+# Keep the unmodified upstream algorithm and its recorded digest stable on Windows/Linux.
+src/echo_kit/resources/pixelmatch/* text eol=lf

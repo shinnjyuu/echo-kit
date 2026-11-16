@@ -1,0 +1,10 @@
+{
+  "name": "mapbox/pixelmatch",
+  "version": "7.1.0",
+  "license": "ISC",
+  "source": "https://github.com/mapbox/pixelmatch/tree/v7.1.0",
+  "source_file": "index.js",
+  "bundled_file": "index.mjs",
+  "sha256": "972e5a5387dde3b6d85ab77337d59ebafca988bf220145caa4b27dc742134dc5",
+  "modifications": "None; file extension is .mjs for direct ES module loading. Echo Kit bridge.cjs is a separate transport."
+}

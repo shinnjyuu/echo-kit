@@ -84,7 +84,7 @@ def close_interrupted(child, replies):
     return False
 
 
-def relay(child, replies, output, timeout):
+def relay(child, replies, output, timeout, capabilities=None):
     incoming = queue.Queue(maxsize=32)
     threading.Thread(target=pump, args=(sys.stdin, incoming), daemon=True).start()
     seen = set()
@@ -106,6 +106,8 @@ def relay(child, replies, output, timeout):
                     raise KitError('Request exceeds 256 KiB')
                 request = json.loads(line)
             validate(request)
+            if request['op'] not in (capabilities or ('observe', 'navigate', 'reload', 'close')):
+                raise KitError('Observation worker does not support this capability; use serve_observer from the current package')
             if request['id'] in seen:
                 raise KitError('Request id has already been used')
             seen.add(request['id'])
@@ -154,6 +156,11 @@ def session(ws, args):
     adapter = ws.path(args.adapter) if args.adapter else None
     if adapter and (not adapter.is_file() or adapter.suffix != '.py'):
         raise KitError('--adapter must name a project Python script')
+    visual = None
+    if any(getattr(args, key, None) for key in ('reference', 'reference_root', 'spec')):
+        from .visual import configuration
+        visual = configuration(ws, getattr(args, 'reference', None), getattr(args, 'reference_root', None),
+                               getattr(args, 'spec', None))
     require_private_output(ws)
     manager = Services(ws)
     names, jobs = manager._plan(args.service, None)
@@ -176,6 +183,8 @@ def session(ws, args):
         settings = {'url': args.url, 'endpoint': info['endpoint'], 'viewer_url': info.get('viewer_url'),
                     'output': str(output), 'operation_id': oid, 'auth': auth,
                     'timeout_ms': args.timeout_ms, 'generation': launches.admitted_generation()}
+        if visual:
+            settings['visual'] = visual
         command = [sys.executable, '-u', str(adapter)] if adapter else [sys.executable, '-u', '-m', 'echo_kit.observation']
         options = {'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}
         confirmed = False
@@ -203,7 +212,7 @@ def session(ws, args):
                         metadata['status'] = 'ready'
                         save(output / 'session.json', metadata)
                         write_receipt(output, ready)
-                        relay(child, replies, output, args.timeout_ms / 1000 * 4 + 10)
+                        relay(child, replies, output, args.timeout_ms / 1000 * 4 + 10, ready.get('capabilities'))
                         confirmed = True
                     except KeyboardInterrupt:
                         launches.checkpoint()
@@ -234,5 +243,49 @@ def observe(args):
             stream.reconfigure(encoding='utf-8')
     ws = Workspace(args.workspace, args.environment)
     ws.actor, ws.tool_update, ws.startup_progress = args.actor, args._update, False
+    from .browser import selected_backend
+    if selected_backend(ws, getattr(args, 'backend', None)) == 'agent-browser':
+        return native_observe(ws, args)
+    ws.cfg['browser'] = {**ws.cfg.get('browser', {}), 'backend': 'playwright'}
     session(ws, args)
+    return 0
+
+
+def native_observe(ws, args):
+    from . import native_sessions
+    if args.adapter:
+        raise KitError('Python browser adapters require explicit --backend playwright; native interaction uses exec')
+    visual = {k: getattr(args, k) for k in ('reference', 'reference_root', 'spec') if getattr(args, k, None)}
+    if visual:
+        from .visual import configuration
+        configuration(ws, args.reference, args.reference_root, args.spec)
+    ws.cfg['browser'] = {**ws.cfg.get('browser', {}), 'backend': 'agent-browser'}
+    info = native_sessions.start(ws, url=args.url, services=args.service, auth=args.auth,
+                                 offline=args.offline, visual=visual, timeout_ms=args.timeout_ms,
+                                 session_id=args.session)
+    print(json.dumps({'protocol': 1, 'event': 'ready', 'status': 'ready', 'version': __version__, **info,
+                     'capabilities': ['observe', 'inspect', 'reference', 'compare', 'exec', 'navigate', 'reload', 'close'],
+                     'reply_file': str(Path(info['output_dir']) / 'latest.json'), 'python_executable': sys.executable}), flush=True)
+    seen = set()
+    closed = False
+    try:
+        for line in sys.stdin:
+            try:
+                value = json.loads(line)
+                rid = request_id(value)
+                if not rid or rid in seen:
+                    raise KitError('Request id must be fresh and nonempty')
+                seen.add(rid)
+                response = native_sessions.request(ws, info['session_id'], value)
+            except (KitError, ValueError) as error:
+                response = {'protocol': 1, 'id': request_id(locals().get('value')), 'status': 'blocked', 'error': str(error), 'images': []}
+            emit(response, sys.stdout)
+            if response.get('status') == 'closed':
+                closed = True
+                break
+    finally:
+        if closed:
+            native_sessions.wait_exit(info)
+        else:
+            native_sessions.manage(ws, 'down', sid=info['session_id'])
     return 0

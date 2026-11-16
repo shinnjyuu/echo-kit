@@ -19,11 +19,11 @@ def parser():
     p.add_argument('--workspace', default='.')
     p.add_argument('--environment')
     p.add_argument('--actor')
-    p.add_argument('--offline', action='store_true', help='Use cached update information and runtimes only')
+    p.add_argument('--offline', action='store_true', help='Run the current package without update routing or network checks')
     p.add_argument('--json', action='store_true')
     top = p.add_subparsers(dest='module', required=True)
     for module, actions in {'workspace': ['init', 'check'], 'services': ['up', 'status', 'down', 'restart', 'logs'],
-                            'auth': ['login', 'check', 'logout'], 'browser': ['up', 'status', 'down', 'observe'],
+                            'auth': ['login', 'check', 'logout'], 'browser': ['up', 'status', 'down', 'observe', 'exec'],
                             'cases': ['list', 'show'], 'lab': ['run', 'compare'], 'verify': ['run'],
                             'operations': ['list', 'show', 'resolve'],
                             'runs': ['list', 'show', 'compare', 'report', 'cleanup'],
@@ -50,9 +50,9 @@ def parser():
                                  'status': 'Read tray and resource process state without a workspace; does not run application health commands.',
                                  'stop': 'Exit only the tray. Services, browser containers and experiments continue. No workspace required.'}[action]}
                 if module == 'tray' else
-                {'description': 'Managed Docker Chromium is headed by default with a local read-only viewer. '
-                 'browser up opens it once in the system browser (disable with browser.auto_open=false; CI defaults off). '
-                 'Set browser.headless=true for automation without a viewer. Existing containers require explicit down/up to change mode.'}
+                {'description': 'Kit-owned native headed Chrome with pinned agent-browser. '
+                 'Use --backend playwright explicitly for Docker/Playwright compatibility. '
+                 'Existing sessions preserve their backend and version; no silent fallback.'}
                 if module == 'browser' else {}))
             if module == 'resources':
                 if action == 'keep':
@@ -71,12 +71,27 @@ def parser():
                     if action == 'clean':
                         cmd.add_argument('--apply', metavar='PLAN_ID', help='Execute a frozen preview once; no arbitrary paths or forced bypass')
                         cmd.add_argument('--unit', action='append', default=[], help='Only this candidate unit from the plan; repeatable, requires --apply')
-            elif module == 'browser' and action == 'observe':
-                cmd.add_argument('--url', required=True, help='Initial HTTP(S) URL reachable from the managed browser')
-                cmd.add_argument('--service', action='append', default=[], help='Prepare and share this service and its dependencies')
-                cmd.add_argument('--auth', help='Existing authentication adapter name')
-                cmd.add_argument('--adapter', help='Project Python script calling echo_kit.observation.serve_observer')
-                cmd.add_argument('--timeout-ms', type=int, default=10000, help='Per-capture readiness timeout (default 10000)')
+            elif module == 'browser' and action == 'exec':
+                cmd.add_argument('--session', help='Owned native session; default is workspace/environment/actor')
+                cmd.add_argument('--page', choices=['target', 'reference'], default='target')
+                cmd.add_argument('--stdin', action='store_true', help='Read private JSON request with command tokens from stdin')
+                cmd.add_argument('command', nargs=argparse.REMAINDER, help='Supported browser command after --')
+            elif module == 'browser' and action in ('up', 'observe'):
+                cmd.add_argument('--backend', choices=['agent-browser', 'playwright'])
+                cmd.add_argument('--session', help='Existing owned session for observe')
+                cmd.add_argument('--url', required=action == 'observe', default='about:blank', help='Initial page URL')
+                cmd.add_argument('--service', action='append', default=[], help='Prepare and hold declared services and dependencies')
+                cmd.add_argument('--auth', help='Existing private authentication adapter')
+                cmd.add_argument('--timeout-ms', type=int, default=10000)
+                if action == 'up':
+                    continue
+                cmd.add_argument('--adapter', help='Legacy Python adapter; requires explicit playwright backend')
+                cmd.add_argument('--reference', help='Shared HTML or HTTP(S) prototype')
+                cmd.add_argument('--reference-root', help='Shared workspace asset root')
+                cmd.add_argument('--spec', help='Shared Markdown requirements, metadata only')
+            elif module == 'browser' and action in ('status', 'down'):
+                cmd.add_argument('--backend', choices=['agent-browser', 'playwright'])
+                cmd.add_argument('--session')
             elif module in ('cases', 'runs') and action == 'list':
                 cmd.add_argument('--limit', type=int, default=20, help='Page size (1..200; default 20)')
                 cmd.add_argument('--offset', type=int, default=0, help='Nonnegative page offset')
@@ -294,7 +309,13 @@ def dispatch(args):
         return summary
     if args.module == 'browser':
         from .browser import manage
-        return manage(ws, args.action)
+        if args.action == 'exec':
+            from .native_sessions import request, session_key
+            message = json.load(sys.stdin) if args.stdin else {'op': 'exec', 'page': args.page, 'command': args.command[1:] if args.command[:1] == ['--'] else args.command}
+            return request(ws, args.session or session_key(ws), message)
+        options = {'url': args.url, 'services': args.service, 'auth': args.auth, 'offline': args.offline,
+                   'timeout_ms': args.timeout_ms, 'sid': args.session} if args.action == 'up' else {'sid': args.session}
+        return manage(ws, args.action, backend=args.backend, **options)
     from .runner import run
     result = []
     for variant in args.variants:
@@ -313,6 +334,10 @@ def exit_code(result):
 
 
 def main(argv=None):
+    # JSON/document pipes must have the same encoding on Windows and Linux.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
     raw = list(sys.argv[1:] if argv is None else argv)
     args = None
     route = None
@@ -337,7 +362,7 @@ def main(argv=None):
             raise KitError('Project version tasks and policies were removed. Use echo-kit directly; '
                            'run updates setup once to migrate an old project entry. Preserve historical records.')
         diagnostic = ((route.module is None and any(x in ('--help', '-h') for x in raw))
-                      or route.module == 'emergency'
+                      or route.module == 'emergency' or (route.module, route.action) == ('browser', 'exec')
                       or (route.module, route.action) in (('runtime', 'info'), ('updates', 'check')))
         discovery = None
         if diagnostic:

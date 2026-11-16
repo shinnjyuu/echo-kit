@@ -8,6 +8,30 @@ Echo Kit 是一套供 AI 编程助手调用的工具。它帮助 AI 复用项目
 
 本页面向第一次了解 Echo Kit 的人。负责接入项目的 AI 请阅读 [AI 接入指南](README.ai.md)。
 
+## 1.0：按原型做页面，用实际画面对照
+
+以下为 1.0.0 的能力；发行状态以官方 PyPI 为准。已有项目的浏览器配置需要明确选择后端。
+
+日常前端调试默认使用 Kit 管理的本机有头 Chrome 与 agent-browser。AI 直接读取页面、点击、填写和截图，不必先编写一份控制脚本；你可以直接看到它操作的浏览器。Docker／noVNC 仅在明确选择 `backend = "playwright"` 时启用。
+
+```sh
+echo-kit browser up --url http://localhost:5173 --service web
+echo-kit browser exec -- snapshot -c
+echo-kit browser exec -- click @e1
+echo-kit browser exec -- screenshot
+```
+
+页面需要按原型还原时，再使用持续观察：
+
+```sh
+echo-kit browser observe --url http://localhost:5173 \
+  --reference prototypes/dashboard.html --spec docs/dashboard.md
+```
+
+HTML／网址提供视觉基准，Markdown 原型或 PRD 提供需求依据。AI 显式采集基准、检查区域尺寸与样式、查看并排图及差异图，修正后继续对照同一基准。原型浏览器默认只在采集时临时打开；普通修改不增加固定脚本或全站矩阵。只给 Markdown 时按条目核对，不宣称像素还原。详见 `echo-kit guide echo-workbench --topic visual`。
+
+升级不自动迁移业务项目。旧浏览器配置需要明确选择原生或兼容后端；旧 Playwright helper、准备回调及 `trace.zip` 仅用于显式兼容方式。原生 trace 是 Chrome/CDP JSON。1.x 的稳定基线从这些明确区分的接口开始，不能把 0.15 的旧浏览器脚本当作无需适配。
+
 ## 它能帮我做什么？
 
 比如，你刚让 AI 修复了一个文件导出功能，还想知道：页面能操作吗？文件真的下载了吗？内容对不对？
@@ -79,11 +103,11 @@ AI 会先检查项目和本机环境，再安装工具、配置所需能力并�
 
 ## 使用条件与当前范围
 
-Echo Kit 本身需要 Python 3.11+，业务项目可以使用其他语言。AI 可以协助安装工具及其运行环境。普通实验和 API 验收不要求 Docker；使用工具托管的浏览器时才需要 Docker。
+Echo Kit 本身需要 Python 3.11+，业务项目可以使用其他语言。AI 可以协助安装工具及其运行环境。普通实验、API 验收和默认原生浏览器不要求 Docker；只有明确选择 Playwright 兼容浏览器时才需要 Docker。
 
 **AI 工具退出、更新或崩溃后，托管的本地服务可能停止，这是设计允许的场景。** Echo Kit 支持服务在命令结束后继续复用，但不保证跨宿主退出存活，也不保证随宿主退出自动清理。后续 AI 应先检查状态，再复用或按需启动。详见[服务生命周期约定](docs/protocol.md#managed-service-lifetime)。
 
-当前验证记录覆盖 Windows 和 Linux 容器；macOS 尚未验证。登录需要项目正常的认证流程。截图、日志和下载文件可能含业务数据，分享前请检查。
+原生运行包首版支持 Windows x64、Linux x64；Linux 浏览器验证使用 Xvfb，macOS 和其他架构暂不支持原生后端。登录需要项目正常的认证流程。截图、日志和下载文件可能含业务数据，分享前请检查。
 
 验收结论只覆盖实际执行的检查。Kit 会标明失败、受阻和未验证的情况；历史记录用于追查过程，不保证重跑结果完全一致。
 
@@ -93,7 +117,7 @@ Echo Kit 0.3.0 起支持区分团队共享文档与个人私有文档：共享�
 
 ## 进一步阅读
 
-修改页面后，可以用 `echo-kit browser observe --url URL --service web` 保持一个观察会话，连续取得当前画面和简短布局诊断。默认保留登录、弹窗和未保存输入，按需刷新或导航。简单页面直接使用，复杂业务页面通过小型项目适配器准备状态。详见[快速视觉观察](src/echo_kit/skills/references/visual-observation.md)。
+修改页面后，可以用 `echo-kit browser observe --url URL --service web` 保持一个观察会话，连续取得当前画面和简短布局诊断。默认保留登录、弹窗和未保存输入，按需刷新或导航。简单页面直接使用，复杂业务页面先通过受管交互和项目已有入口准备状态；Python 观察适配器仅用于显式 Playwright 兼容模式。详见[快速视觉观察](src/echo_kit/skills/references/visual-observation.md)。
 
 - [AI 接入指南](README.ai.md)：从未安装到完成项目接入，也适合希望手动配置的开发者。
 - [独立演示](docs/demo.md)：用示例项目体验实验、API 验收和浏览器验收。
@@ -126,18 +150,17 @@ Windows 托盘增加只读资源摘要、内存最高的三个服务及各服务
 
 ## 看见 AI 正在调试的页面
 
-0.6.0 起，托管浏览器默认有头运行。`echo-kit browser up` 或页面验收会启动 Docker 浏览器，并尝试用系统默认浏览器打开只读观看页：你看到的是 AI 正在操作的同一个桌面，不绑定 Edge，也无需安装 VNC 客户端。观看页无法点击或输入，不会干扰实验。
-
-首次使用会构建并缓存浏览器镜像，需要联网下载依赖，耗时比后续启动长。每个容器只尝试自动打开一次；关闭观看页不会停止实验，也不会被强制重开。返回的 `viewer_url` 可随时再次打开；`browser down` 停止并移除所属容器，运行占用仍受保护。
+1.0 默认直接显示本机独立 Chrome 窗口，不需要 Docker 或 noVNC。Kit 准备固定并校验摘要的 agent-browser 与 Chrome 运行包，不使用个人日常浏览器的登录状态。首次下载比热态操作慢；显式离线只复用已经准备的运行包。
 
 ```toml
 [browser]
-headless = false    # 默认有头；true 适合不需要观看的批量实验
-# auto_open = false  # 不自动弹出观看页；CI 环境默认不弹出
-# viewer_port = 19324
+backend = "agent-browser"  # 默认；明确写 playwright 才启用旧方式
+headless = false          # 默认直接显示浏览器窗口
 ```
 
-已有旧容器不会偷偷切换模式；等实验结束后按提示执行 `browser down`、`browser up`。详见[可视浏览器约定](docs/protocol.md#visible-browser)。
+原生窗口可以被你操作或关闭；关闭正在调试的页面会影响该会话，未保存状态不能保证恢复。Kit 不会偷偷创建新页面并重跑动作。通过状态和托盘定位所属窗口；窗口已结束时明确报告。`browser down` 只结束指定所属会话，服务继续保留。
+
+兼容项目可明确使用 `echo-kit browser up --backend playwright` 或相应配置，继续采用 Docker／只读 noVNC。旧端口、镜像、endpoint 或已有容器不会自动选择该方式；切换前先处理旧占用并显式停止旧实例。原生失败不静默回退。旧 Python helper 按需读取 `guide echo-workbench --topic browser-compatibility`，日常使用 `browser` 主题。详见[可视浏览器约定](docs/protocol.md#visible-browser)。
 
 ## 获取当前指南与更新说明
 
@@ -153,27 +176,23 @@ echo-kit updates notes --since 0.5.0
 
 指南默认返回同一执行包的精简 Skill、核心规则、主题目录、当前更新说明和版本；按需使用 `--topic TOPIC`，`--full` 才返回完整协议和参考资料；支持 `--json`，无需工作区。日常调用检查最新版；显式 `--offline` 和离线环境变量停留在当前入口，只用于确实离线或指定安装包验收。`--version` 按普通更新逻辑显示本次实际执行版本；`runtime info` 只诊断本地入口。一次实验的版本以运行记录为准。自动升级提示不代表项目已适配。
 
-前端调试推荐 **Kit 管理的 Docker 浏览器与只读 noVNC**。Docker 或构建失败时先处理错误，不自动改接外部浏览器。已有 `browser.endpoint` 仍生效，但只是显式兼容例外：Kit 不管理其镜像、显示模式和观看页，也不保证外部观看链接只读。查看 `browser up/status` 的能力信息；要切换时先检查配置来源和运行占用，在授权范围内调整配置后启动托管浏览器，不停止或接管原外部容器。
+前端调试默认使用 **受管原生有头浏览器与 agent-browser**。旧 Docker／noVNC 和外部 Playwright endpoint 只在明确选择兼容后端时使用，不自动发现或接管外部实例。旧配置需要查看来源并作出选择；原生失败不自动回退。切换前检查运行占用和实际登记，不因配置改变而误停原实例。
 
 项目文档只维护启动方式、用例、认证流程、团队规则和环境归属；个人机器信息留在私有文档。项目 Skill 可写成指向 `echo-kit guide echo-workbench` 的短入口。整理旧副本时保留项目事实，再将通用 Kit 用法改为 CLI 入口，不覆盖原文。需要离线分发完整 Skill 时仍可导出到空目录并比较合并。
 
 ## Windows 托盘：关了观看页也能找回来
 
-0.8.0 起，在 Windows 桌面启动 Kit 托管服务或浏览器时，会自动出现 Echo Kit 托盘图标（可能收在右下角隐藏图标区）。关闭 noVNC 标签页后，右键托盘，选择项目的“打开调试画面”，即可继续看同一次实验，不用向 AI 发消息。
-
-托盘显示进程和容器的运行状态。托管有头浏览器提供观看入口，受管构建或实验单独运行时也会显示托盘。
+在 Windows 桌面启动受管服务、原生浏览器或本地构建／实验时，会出现 Echo Kit 托盘图标。选择所属工作区和会话，可定位正在运行的原生 Chrome 窗口；兼容 Docker 实例继续打开原 noVNC 链接。状态来自真实进程身份及容器归属，不执行项目健康检查。
 
 ```sh
-echo-kit tray start           # 当前项目已有资源时，手动显示入口
-echo-kit --json tray status   # 无需工作区
-echo-kit tray stop            # 只退出托盘，服务和实验继续
+echo-kit tray start
+echo-kit --json tray status
+echo-kit tray stop  # 只退出托盘，业务资源继续
 ```
 
-全部托管资源确认停止后，托盘等待 30 秒自动退出；查询失败显示“状态未知”。手动退出后，同一次操作不会重新拉起，下一次启动操作可以恢复。CI、非交互桌面或环境变量 `ECHO_KIT_TRAY=0` 禁用自动启动；macOS/Linux 继续使用观看链接。
+原生窗口已经关闭时，不通过新建页面冒充恢复；未保存状态不能保证找回。托盘只提供入口，不提供后台业务守护或开机启动。全部资源确认停止后等待 30 秒退出；未知状态不会当作已停止。CI、非交互桌面和 `ECHO_KIT_TRAY=0` 禁用自动托盘。受限 Windows 宿主可能无法让后台进程跨宿主退出存活，需如实说明。
 
-托盘独立运行，但不是服务守护程序，也不开机启动。如果 Windows 宿主限制后台进程独立启动，Kit 提示原因并保留原观看链接，不影响调试结果。已有项目运行一次 `tray start` 或新的启动命令即可接入，不改配置或业务容器。
-
-内存告急时，右键点击托盘里的 **急停所有工作区**。单击即强杀当前用户的本机受管服务、调试容器和任务，跳过保存和清理。也可明确让 AI 执行 `echo-kit emergency stop --all`。该命令在 Windows 和 Linux 上直接在本机运行。急停前排队的启动会取消，结束后可发起新启动。升级本机 Kit 后重新开启托盘即可载入菜单。详细范围和结果说明见[急停协议](docs/protocol.md#emergency-stop)。
+**急停所有工作区** 同时覆盖所属原生协调进程、agent-browser、Chrome、旧调试容器、服务和任务。也可明确让 AI 执行 `echo-kit emergency stop --all`；不保存业务数据或运行清理脚本，未确认结果保留证据。安装新版后重新开启托盘载入菜单。详见[急停协议](docs/protocol.md#emergency-stop)。
 
 ## 测试账号也要准备好
 

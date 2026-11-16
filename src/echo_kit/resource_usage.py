@@ -178,9 +178,28 @@ def discover(ws=None, names=None, *, operations=None, records=None):
             state_file(hint)
 
     if not names:
+        seen_native = set()
         for hint in hints:
+            native_directory = hint['native_browsers_dir']
+            if native_directory not in seen_native:
+                seen_native.add(native_directory)
+                native, problems = workspace_index.native_records(hint)
+                diagnostics.extend(problems)
+                for record in native:
+                    if ws and record['environment'] != ws.environment:
+                        continue
+                    sid = record['session_id']
+                    identity = 'native-browser:' + hint['owner'] + ':' + sid
+                    reference = {'workspace': record['workspace'], 'environment': record['environment'], 'name': sid}
+                    item = base('native_browser', identity, Path(record['workspace']).name + ' / ' + sid, [reference])
+                    item.update(backend='agent-browser', session_id=sid, instance_id=record['instance_id'],
+                                state=workspace_index.native_state(record), _identity=record['identity'],
+                                _identities=[record['identity'], *record['children']], _keys=[identity])
+                    if item['state'] == 'unknown':
+                        item['diagnostics'].append(issue('native_browser_identity_unverified'))
+                    items[identity] = item
             file = Path(hint['browser_file'])
-            if hint.get('browser_managed') is False:
+            if hint.get('browser_managed') is False and not file.exists():
                 item = base('browser', 'external-browser:' + canonical_path(hint['workspace']), 'browser')
                 item['state'] = 'external'
                 items[item['id']] = item
@@ -240,30 +259,33 @@ def native_frame(items):
     roots, processes, parents = {}, {}, {}
     owner = process_owner(psutil.Process())
     for item in items:
-        if item['kind'] != 'service' or '_identity' not in item:
+        if item['kind'] not in ('service', 'native_browser') or '_identity' not in item:
             continue
         iid = item['id']
         frame['members'][iid], frame['problems'][iid] = set(), []
-        try:
-            root = verified_process(item['_identity'])
-            if root is None:
-                frame['states'][iid] = 'stopped'
-                continue
-            if process_owner(root) != owner:
-                raise KitError('Different owner')
-            identity = (root.pid, root.create_time())
-            # Multiple registrations of the same root share one measured tree.
-            roots.setdefault(identity, iid)
-            processes[identity] = root
-            frame['states'][iid] = 'running'
-        except psutil.NoSuchProcess:
-            if iid in frame['states']:
-                frame['problems'][iid].append(issue('process_tree_changed'))
-            else:
-                frame['states'][iid] = 'stopped'
-        except (psutil.Error, *_ERRORS):
+        frame['states'][iid] = 'stopped'
+        for identity_record in item.get('_identities', [item['_identity']]):
+            try:
+                root = verified_process(identity_record)
+                if root is None:
+                    continue
+                if process_owner(root) != owner:
+                    raise KitError('Different owner')
+                identity = (root.pid, root.create_time())
+                # Register children too: they remain discoverable after an owner crash.
+                roots.setdefault(identity, iid)
+                processes[identity] = root
+                if frame['states'][iid] != 'unknown':
+                    frame['states'][iid] = 'running'
+            except psutil.NoSuchProcess:
+                if frame['states'][iid] == 'running':
+                    frame['problems'][iid].append(issue('process_tree_changed'))
+            except (psutil.Error, *_ERRORS):
+                frame['states'][iid] = 'unknown'
+                frame['problems'][iid].append(issue('process_identity_or_tree_unverified'))
+        if item['kind'] == 'native_browser' and item['state'] == 'unknown':
             frame['states'][iid] = 'unknown'
-            frame['problems'][iid].append(issue('process_identity_or_tree_unverified'))
+            frame['problems'][iid].append(issue('native_browser_identity_unverified'))
     parent_pids = {}
     if roots:
         try:
@@ -326,7 +348,8 @@ def native_frame(items):
         iid = item['id']
         if frame['states'].get(iid) == 'running':
             try:
-                if verified_process(item['_identity']) is None:
+                if not any(verified_process(identity) is not None
+                           for identity in item.get('_identities', [item['_identity']])):
                     raise KitError('Root exited during sample')
             except (psutil.Error, *_ERRORS):
                 frame['states'][iid] = 'unknown'
@@ -459,7 +482,7 @@ class Sampler:
                                   for ref in item['references']]
         public.sort(key=lambda i: (i['memory_bytes'] is None, -(i['memory_bytes'] or 0), i['kind'], i['id']))
         summary = {}
-        for kind, label in [('service', 'native'), ('browser', 'containers')]:
+        for kind, label in [('service', 'native'), ('browser', 'containers'), ('native_browser', 'native_browsers')]:
             selected = [i for i in public if i['kind'] == kind and i['state'] != 'external']
             known = [i for i in selected if i['memory_bytes'] is not None]
             summary[label] = {'memory_bytes': sum(i['memory_bytes'] for i in known), 'count': len(selected),
@@ -493,8 +516,8 @@ def summary_text(result, now=None):
     lines = ['资源用量' + ('（旧数据）' if age > STALE_SECONDS else '') + f' · {int(age)} 秒前']
     if result['status'] != 'passed':
         lines.append('部分指标未验证；请查看 CLI 诊断')
-    for key, label in [('native', '服务 RSS 观测合计'), ('containers', '容器内存')]:
-        value = result['summary'][key]
+    for key, label in [('native', '服务 RSS 观测合计'), ('native_browsers', '原生浏览器 RSS 观测合计'), ('containers', '容器内存')]:
+        value = result['summary'].get(key, {'memory_bytes': 0, 'measured_count': 0, 'count': 0, 'unknown_count': 0})
         text = format_memory(value['memory_bytes']) if value['measured_count'] or not value['count'] else '未知'
         lines.append(label + '：' + text + (f"；{value['unknown_count']} 项未知" if value['unknown_count'] else ''))
     return lines
@@ -505,7 +528,7 @@ def render(result):
     lines.append('名称 | 状态 | 内存 | CPU（单核100%／容器口径） | 进程数／容器PIDS | 引用 / 占用')
     for item in result['items']:
         cpu = '未知' if item['cpu_percent'] is None else f"{item['cpu_percent']:.1f}%"
-        count = item['process_count'] if item['kind'] == 'service' else item['container_pids']
+        count = item['container_pids'] if item['kind'] == 'browser' else item['process_count']
         refs = ', '.join(f"{r['workspace']} [{r['environment']}]" for r in item['references']) or '—'
         occupants = ', '.join(f"{o['id']} ({o.get('actor') or o['action']}, {o['state']})" for o in item['occupants'])
         occupants = occupants or ('无 Kit 占用' if item.get('occupancy_verified', True) else '占用状态未知')

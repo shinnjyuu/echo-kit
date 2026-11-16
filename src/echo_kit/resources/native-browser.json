@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "agent_browser_version": "0.43.0",
+  "chrome_version": "157.0.8103.78",
+  "platforms": {
+    "windows-x64": {
+      "agent_browser": {
+        "url": "https://github.com/vercel-labs/agent-browser/releases/download/v0.43.0/agent-browser-win32-x64.exe",
+        "sha256": "ebcef5ebea93c7ccf0fe3f8c18eee908ae9174dfef8e52a3dda6f24a59f630dc",
+        "size": 20043776,
+        "executable": "agent-browser.exe"
+      },
+      "chrome": {
+        "url": "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.78/win64/chrome-win64.zip",
+        "sha256": "5f6ec40206407112702e163bf694d07f9fdc8ccbd346c70ce61fa62f716493f9",
+        "size": 209854321,
+        "archive": "zip",
+        "executable": "chrome-win64/chrome.exe"
+      }
+    },
+    "linux-x64": {
+      "agent_browser": {
+        "url": "https://github.com/vercel-labs/agent-browser/releases/download/v0.43.0/agent-browser-linux-x64",
+        "sha256": "8e69c9fb662514c9cf36e4911e94e913742ba066e55102486350e049dd847612",
+        "size": 20460232,
+        "executable": "agent-browser"
+      },
+      "chrome": {
+        "url": "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.78/linux64/chrome-linux64.zip",
+        "sha256": "9223832977a13db3646201b1341c1f9cf08afa3ceae92540116d7b0c062364fb",
+        "size": 203266906,
+        "archive": "zip",
+        "executable": "chrome-linux64/chrome"
+      }
+    }
+  }
+}

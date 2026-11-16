@@ -5,6 +5,8 @@ description: Run and compare Echo Kit experiments when the user explicitly reque
 
 # Echo Lab
 
+For repeatable visual questions, read `echo-kit guide echo-lab --topic visual` / [visual comparison](../references/visual-comparison.md). Reuse fixed reference evidence and selected requirement lines; pixel differences do not prove business behavior or model quality. One-off visual checks can stay in browser observe without a case or permanent script.
+
 At first use read `echo-kit guide echo-lab` for core rules and the topic directory from the executing package. Re-read when its execution version changes, not every turn. Daily work and guide reads use ordinary echo-kit; --offline and offline environment switches stay on the calling package, only for actual offline work or selected-package validation. For exported offline Skills, read [core rules](../references/protocol.md#core-rules) first, then only the required linked sections below. Full reference distribution remains available via skills export to an empty directory; preserve project edits when comparing updates.
 
 ## Choose acceptance, then read
@@ -15,6 +17,9 @@ Choose the smallest acceptance approach that matches user intent: human acceptan
 
 Read `docs list` and the shared project entry for mandatory team rules; read private notes explicitly only when needed. Only when reusing repeatable automation, use `cases list`, `cases list --category CATEGORY` or `cases list --query TEXT` to find existing experiments. Read `cases show ID` for the chosen explanation and declared prerequisites; these are not proof of readiness. Only read source or raw evidence when modifying or verifying it. Use paginated `runs list --case ID` to find history, then `runs show ID` for the selected record; never substitute a page of history for complete operation/cleanup checks.
 
+
+Native browser default: read the browser topic before interaction. Kit owns a headed local Chrome and pinned agent-browser; use short browser up/exec commands without a permanent script. Old image/port/endpoint fields and Python adapters do not auto-select compatibility. Choose backend="playwright" explicitly only when needed. Preserve actor/session ownership, actual versions, private auth and evidence. A lost page/result is not permission to restart or replay. Native trace is Chrome/CDP JSON, not Playwright trace.zip.
+
 ## Required topics
 
 Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read the linked exported section). This adds the core rules and only the chosen details:
@@ -22,7 +27,7 @@ Before using a capability, run `echo-kit guide echo-lab --topic TOPIC` (or read 
 - `configuration`: [shared/local/environment edits](../references/protocol.md#shared-and-local-configuration).
 - `cases`: [case discovery](../references/protocol.md#experiment-directory-and-layered-reading) and [adapter contract](../references/protocol.md#experiment-and-verification-subprocess).
 - `services`: [shared instances and usage](../references/protocol.md#shared-service-instances), [startup](../references/protocol.md#parallel-service-startup), [lifetime](../references/protocol.md#managed-service-lifetime) and [occupancy](../references/protocol.md#shared-operations-local-user).
-- `browser`: [Docker debugging and viewer](../references/protocol.md#visible-browser), [external exceptions](../references/protocol.md#current-guides-and-release-notes) and [tray](../references/protocol.md#windows-tray-viewer-080).
+- `browser`: [native browser commands and explicit compatibility](../references/protocol.md#visible-browser), [external exceptions](../references/protocol.md#current-guides-and-release-notes) and [tray](../references/protocol.md#windows-tray-viewer-080).
 - `auth`: [authentication](../references/protocol.md#authentication-subprocess) and [test identity preparation](../references/test-identities.md), only when authentication is needed.
 - `documents`: [shared/private documents](../references/protocol.md#shared-and-private-project-documents) and [directory rules](../references/protocol.md#directory-documentation-and-rules).
 - `updates`: [upgrade adaptation](../references/protocol.md#latest-version-execution).

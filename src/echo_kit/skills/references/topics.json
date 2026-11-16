@@ -42,7 +42,7 @@
   },
   {
     "id": "browser",
-    "description": "Before browser debugging, container changes or viewer recovery",
+    "description": "Before native browser interaction, runtime preparation or owned window recovery",
     "sections": [
       "Acceptance approaches",
       "Visible browser",
@@ -53,9 +53,32 @@
       "Runtime debugging"
     ],
     "references": [
-      "references/interactive-session.md",
       "references/visual-observation.md",
       "references/runtime-debugging.md"
+    ]
+  },
+  {
+    "id": "browser-compatibility",
+    "description": "Only after explicit Playwright/Docker selection: legacy Python helpers and viewer behavior",
+    "sections": [
+      "Browser and records",
+      "Visible browser",
+      "Shared operations (local user)",
+      "Acceptance approaches",
+      "Emergency stop"
+    ],
+    "references": [
+      "references/interactive-session.md"
+    ]
+  },
+  {
+    "id": "visual",
+    "description": "Only for prototype fidelity: HTML/URL baselines, bounded measurements, Markdown requirements and visual evidence",
+    "sections": [
+      "Prototype evidence and visual comparison"
+    ],
+    "references": [
+      "references/visual-comparison.md"
     ]
   },
   {
@@ -81,7 +104,10 @@
   {
     "id": "resources",
     "description": "On-demand resource accounting, disk bills, retention and reclamation plans",
-    "sections": ["Resource usage", "Disk reclamation"],
+    "sections": [
+      "Resource usage",
+      "Disk reclamation"
+    ],
     "references": []
   },
   {

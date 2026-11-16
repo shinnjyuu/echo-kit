@@ -23,7 +23,7 @@ from .core import KitError, read, save, safe_name
 from .operations import data_root
 from .processes import fingerprint, matches
 
-PROTOCOL = 3
+PROTOCOL = 4
 POLL_SECONDS = 5
 IDLE_SECONDS = 30
 _scope = ContextVar('tray_start_scope', default=None)
@@ -111,6 +111,7 @@ def snapshot(resource_sink=None):
     rows, containers = [], None
     docker_failed = False
     seen_browsers = set()
+    seen_native = set()
     for key, entry in index.items():
         row = {'key': key, 'name': entry['name'], 'environment': entry['environment'],
                'workspace': entry['workspace'], 'services': [], 'browser': None}
@@ -123,7 +124,7 @@ def snapshot(resource_sink=None):
                     row['services'].append({'name': name, 'state': process_state(states[name]['identity'])})
         except (OSError, ValueError, TypeError, KeyError):
             row['services'].append({'name': '登记文件', 'state': 'unknown'})
-        if entry['browser_managed'] and entry['browser_file'] not in seen_browsers:
+        if entry['browser_file'] not in seen_browsers and (entry['browser_managed'] or Path(entry['browser_file']).exists()):
             seen_browsers.add(entry['browser_file'])
             try:
                 state = read(entry['browser_file'], {})
@@ -147,6 +148,29 @@ def snapshot(resource_sink=None):
             except (OSError, ValueError, KeyError, TypeError):
                 row['browser'] = {'state': 'unknown', 'viewer_url': None}
         rows.append(row)
+        from . import workspace_index
+        try:
+            hint = workspace_index.validate(entry)
+            if hint['native_browsers_dir'] in seen_native:
+                continue
+            seen_native.add(hint['native_browsers_dir'])
+            native, problems = workspace_index.native_records(hint)
+            for record in native:
+                sid = record['session_id']
+                rows.append({'key': 'native:' + hint['owner'] + ':' + sid,
+                             'name': entry['name'] + ' · ' + (record.get('actor') or sid),
+                             'environment': record['environment'], 'workspace': record['workspace'], 'services': [],
+                             'browser': {'backend': 'agent-browser', 'state': workspace_index.native_state(record),
+                                         'id': record['instance_id'], 'session_id': sid, 'headless': record['headless'],
+                                         'viewer_url': None}})
+            if problems:
+                rows.append({'key': 'native-unknown:' + hint['owner'], 'name': entry['name'] + ' · 原生浏览器登记',
+                             'environment': entry['environment'], 'workspace': entry['workspace'], 'services': [],
+                             'browser': {'backend': 'agent-browser', 'state': 'unknown', 'headless': True, 'viewer_url': None}})
+        except (KitError, OSError, ValueError, TypeError, KeyError):
+            rows.append({'key': 'native-unknown:' + key, 'name': entry['name'] + ' · 原生浏览器登记',
+                         'environment': entry['environment'], 'workspace': entry['workspace'], 'services': [],
+                         'browser': {'backend': 'agent-browser', 'state': 'unknown', 'headless': True, 'viewer_url': None}})
     from .service_registry import Registry, process_state as shared_state
     from .operations import Journal
     shared = []
@@ -292,7 +316,7 @@ def notify(ws):
         scope['unavailable'] = True
         if not scope.get('warned'):
             scope['warned'] = True
-            print('Echo Kit: tray unavailable; debugging continues. Use viewer_url; see local tray.log.', file=sys.stderr)
+            print('Echo Kit: tray unavailable; debugging continues. Use browser status for the owned session or viewer; see local tray.log.', file=sys.stderr)
         try:
             directory = root()
             directory.mkdir(parents=True, exist_ok=True)
@@ -326,11 +350,56 @@ def startup_scope(function=None, *, verify_only=False):
 
 def open_viewer(key):
     row = next((r for r in snapshot() if r['key'] == key), None)
+    if row and row['browser'] and row['browser'].get('backend') == 'agent-browser':
+        from . import workspace_index
+        hint = {'workspace': row['workspace'], 'environment': row['environment']}
+        records, _ = workspace_index.native_records(hint)
+        record = next((r for r in records if r['session_id'] == row['browser'].get('session_id')), None)
+        if not record or workspace_index.native_state(record) != 'running' or record.get('headless'):
+            raise KitError('No verified owned native browser window is available')
+        return focus_native_window(record)
     url = row['browser'].get('viewer_url') if row and row['browser'] else None
     if not url:
         raise KitError('No owned running browser viewer is available')
     if not webbrowser.open(url, new=2):
         raise KitError('System browser could not open the viewer')
+
+
+def focus_native_window(record):
+    """Foreground an existing owned Chrome window; never navigate or recreate it."""
+    if sys.platform != 'win32':
+        raise KitError('Native window activation is supported only on Windows')
+    pids = {identity['pid'] for identity in record.get('children', [])
+            if Path(identity.get('exe', '')).name.lower() in ('chrome.exe', 'chromium.exe') and matches(identity)}
+    if not pids:
+        raise KitError('Native browser process identity could not be confirmed')
+    user = ctypes.windll.user32
+    windows = []
+    callback_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_ssize_t)
+    user.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+    user.IsWindowVisible.argtypes = [ctypes.c_void_p]
+    user.EnumWindows.argtypes = [callback_type, ctypes.c_ssize_t]
+    user.IsIconic.argtypes = [ctypes.c_void_p]
+    user.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    user.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+    def candidate(hwnd, _):
+        pid = ctypes.c_ulong()
+        user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value in pids and user.IsWindowVisible(hwnd):
+            windows.append((hwnd, pid.value))
+        return True
+    callback = callback_type(candidate)
+    user.EnumWindows(callback, 0)
+    if not windows:
+        raise KitError('No visible window belongs to the verified native browser; it may have been closed')
+    hwnd, pid = windows[0]
+    # Check ownership a second time immediately before activating the selected handle.
+    if not any(i['pid'] == pid and matches(i) for i in record.get('children', [])):
+        raise KitError('Native browser identity changed before window activation')
+    if user.IsIconic(ctypes.c_void_p(hwnd)):
+        user.ShowWindow(ctypes.c_void_p(hwnd), 9)
+    if not user.SetForegroundWindow(ctypes.c_void_p(hwnd)):
+        raise KitError('Windows did not allow bringing this native browser to the foreground')
 
 
 class IdleTimer:
@@ -427,8 +496,8 @@ def serve(token):
                     return []
                 stale = '（旧数据）' if time.time() - sampled['sampled_at'] > 15 else ''
                 cpu = '未知' if found['cpu_percent'] is None else f"{found['cpu_percent']:.1f}%"
-                count = found['process_count'] if kind == 'service' else found['container_pids']
-                label = '进程数' if kind == 'service' else '容器 PIDS'
+                count = found['container_pids'] if kind == 'browser' else found['process_count']
+                label = '容器 PIDS' if kind == 'browser' else '进程数'
                 return [pystray.MenuItem('内存：' + format_memory(found['memory_bytes']) + stale, None, enabled=False),
                         pystray.MenuItem('CPU：' + cpu + stale, None, enabled=False),
                         pystray.MenuItem(label + '：' + (str(count) if count is not None else '未知'), None, enabled=False)]
@@ -462,11 +531,14 @@ def serve(token):
                             if sampled else None) for s in row['services']]
                 browser = row['browser']
                 if browser:
-                    label_browser = ('旧容器，无观看入口' if browser.get('legacy') else
+                    native = browser.get('backend') == 'agent-browser'
+                    label_browser = ('原生无头浏览器' if native and browser.get('headless') else '原生浏览器' if native else
+                                     '旧容器，无观看入口' if browser.get('legacy') else
                                      '无头模式，无观看入口' if browser.get('headless') else '浏览器')
                     children.append(pystray.MenuItem(label_browser + ': ' + text[browser['state']], None, enabled=False))
-                    children += measured('browser', instance_id=browser.get('id'))
-                    children.append(pystray.MenuItem('打开调试画面', request_open(row['key']), enabled=bool(browser.get('viewer_url'))))
+                    children += measured('native_browser' if native else 'browser', instance_id=browser.get('id'))
+                    children.append(pystray.MenuItem('定位浏览器窗口' if native else '打开调试画面', request_open(row['key']),
+                                    enabled=browser['state'] == 'running' and not browser.get('headless') if native else bool(browser.get('viewer_url'))))
                 items.append(pystray.MenuItem(label, pystray.Menu(*children)))
             if len(items) == 2:
                 items.append(pystray.MenuItem('暂无运行中的托管资源', None, enabled=False))
@@ -498,10 +570,11 @@ def serve(token):
                         if sampled:
                             native = sampled['summary']['native']
                             containers = sampled['summary']['containers']
+                            browsers = sampled['summary'].get('native_browsers', {'memory_bytes': 0, 'unknown_count': 0})
                             def amount(part):
                                 return format_memory(part['memory_bytes']) if not part['unknown_count'] else '部分未知'
                             stale = '（旧）' if time.time() - sampled['sampled_at'] > 15 else ''
-                            icon.title = f"Echo Kit{stale} · 服务 {amount(native)} · 容器 {amount(containers)}"
+                            icon.title = f"Echo Kit{stale} · 服务 {amount(native)} · 浏览器 {amount(browsers)} · 容器 {amount(containers)}"
                         icon.update_menu()
                         if not stopping.is_set() and idle.expired(current, time.monotonic()):
                             # Serialize idle exit with start() so resource registration cannot be lost.

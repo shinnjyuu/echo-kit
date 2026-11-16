@@ -198,5 +198,13 @@
     "applies_when": "A user or Agent needs resource accounting or authorized reclamation of old run/observation attachments and declared disposable outputs.",
     "steps": "Use resources status for memory/CPU. Read the resources topic for disk: inspect resources disk [--all], preview resources clean, pin important units with resources keep, then execute resources clean --apply PLAN_ID (optional repeated --unit). Changed/protected units are skipped; inspect the receipt and re-preview remaining content. Restart only the tray after installing for memory summaries; disk scanning is never added to its polling.",
     "no_change_when": "Existing services, browsers, cases and adapters stay compatible. No automatic deletion, stop, limits, Docker pruning or resource-history monitoring is added. Business runs cleanup stays separate. Existing exports are not overwritten; unknown legacy evidence is only reported, never claimed based on names."
+  },
+  {
+    "version": "1.0.0",
+    "changes": "Native headed Kit-owned Chrome with pinned agent-browser, short managed browser commands, persistent session ownership and fixed-baseline prototype evidence. Docker/noVNC is explicit compatibility only; native trace is Chrome/CDP JSON.",
+    "configuration": "browser.backend defaults agent-browser; explicit playwright selects compatibility. Old image/port/viewer_port/endpoint never enable legacy automatically. Browser cases declare browser_backend. Observe adds --reference/--reference-root/--spec; protocol 1 retains matching IDs and adds managed interaction.",
+    "applies_when": "Daily browser debugging, prototype fidelity, or an old browser setup needs migration. Short existing-session commands avoid per-click update checks; default source/target sessions do not share personal login state.",
+    "steps": "Read browser and visual topics. Prepare the native runtime and owned session, use browser exec for supported actions or browser observe for persistent JSON. Select backend explicitly for old configuration and browser adapters; stop owned old resources after completing use, never auto-migrate business projects. Compare fixed reference evidence with selected Markdown requirements. Re-export to an empty directory and merge project edits deliberately.",
+    "no_change_when": "Non-browser service, document, experiment and disk capabilities retain their interfaces. Existing Playwright hooks/trace.zip work only in explicitly selected compatibility mode. No default control scripts, full-site matrix, real model calls, personal-browser takeover or silent fallback are added."
   }
 ]

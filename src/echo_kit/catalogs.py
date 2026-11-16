@@ -82,6 +82,8 @@ def case(ws, name):
                                'auth': auth, 'browser': browser, 'verified': False},
               'note': 'Lab does not prepare dependencies; Verify prepares declared capabilities.',
               'document': None}
+    if spec.get('browser_backend') is not None:
+        result['requirements']['browser_backend'] = spec['browser_backend']
     value = spec.get('docs')
     if value is None:
         result['next_step'] = 'No experiment document registered; inspect the selected project entry as needed.'

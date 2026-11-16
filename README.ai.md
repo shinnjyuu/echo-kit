@@ -4,6 +4,8 @@
 
 官方仓库：[shinnjyuu/echo-kit](https://github.com/shinnjyuu/echo-kit)。Python 包：[shinnjyuu-echo-kit](https://pypi.org/project/shinnjyuu-echo-kit/)。安装包名为 `shinnjyuu-echo-kit`，命令名为 `echo-kit`。
 
+涉及原型还原或视觉偏差时，先读取 `echo-kit guide echo-workbench --topic visual`。1.0 起可向持续 `browser observe` 会话传入 `--reference`（共享 HTML／网址）和 `--spec`（共享 Markdown），使用 `inspect`、显式 `reference` 基准及 `compare`。按需求文档行号关联测量和截图证据；只给文字时不能宣称像素还原。遵循用户与项目既有优先级，文档和原型冲突时说明来源。默认指南保持精简，普通任务不因此增加固定脚本、全站矩阵或真实模型调用。
+
 ## 1. 识别目标项目和已有能力
 
 先阅读目标项目的开发约定、README、构建与启动配置、测试和 CI 文件。确认用户要接入的项目路径，避免把 Echo Kit 自身的源码目录当作目标项目。
@@ -74,7 +76,7 @@ echo-kit --workspace "WORKSPACE" workspace init
 | --- | --- |
 | 实验与方案对比 | 配置 `cases`、输入和必要的 `variants`，通过 Lab 执行 |
 | 人工验收 | 准备必要服务，给出业务前端地址和检查要点，等待人工反馈 |
-| AI 一次性交互验收 | 复用可连接托管 Docker 浏览器的工具和存活会话，按需使用认证，不默认登记用例 |
+| AI 一次性交互验收 | 默认使用受管原生有头浏览器和短交互命令，复用会话和认证，不默认写控制脚本或登记用例 |
 | 可重复 API 或页面实验 | 复用已有用例，缺少时再登记最小用例，仅声明需要的 `services`、`auth` 和 `browser` |
 | 已有外部服务 | 显式声明 `mode="external"`，保留外部所有权 |
 
@@ -86,7 +88,7 @@ echo-kit --workspace "WORKSPACE" workspace init
 
 ## 5. 执行最小验证并检查证据
 
-反复调整页面外观时，读取 `guide echo-workbench --topic browser` 中的快速视觉观察说明。使用 `browser observe --url URL --service NAME` 维持本轮自有页面，普通观察保留登录、弹窗和输入。刷新、导航、模拟数据及动画处理显式选择；重型项目用小型项目适配器补登录和就绪条件。只显示本次匹配响应中的截图，结束时 close。宿主需要保留进程并支持显示图片，worker 计时不包含图片交付或 AI 推理。
+反复调整页面外观时，读取 browser 主题的快速观察说明。可用 browser up/exec 短命令，或 browser observe --url URL --service NAME 持续JSON会话；两者复用受管能力。登录、弹窗和输入默认保留，刷新／导航／模拟数据／动画处理显式选择。业务准备优先现有登录入口和交互命令，旧Python回调只用于兼容后端。只显示本次匹配响应中的图片；结束时关闭所属会话。
 
 在工作区直接执行命令。环境覆盖通过 `--environment NAME` 指定，不再从版本任务继承。先检查配置和资源占用：
 
@@ -98,7 +100,7 @@ echo-kit --json services status SERVICE
 
 `SERVICE` 替换为本轮涉及的服务名，可传多个；不指定名称才查询全部服务。未收尾列表包含空占用但未结束、失效占用和待清理记录；历史仍用原 `operations list` 和 `operations show ID` 读取。
 
-人工验收准备服务并交付业务地址，未反馈时标记待验收。AI 交互验收先复用已有入口，再用实际执行客户端核对导入的 Playwright 与 `browser up/status` 的 `required_playwright_version`，最小连接成功后确认目标环境、账号／租户及必要登录。Kit 自己连接成功不代表项目解释器也兼容。单点失败先修复并复查该点，再跑完整流程。随后执行本次关键操作、必要截图和收尾，保留全过程会话占用；不默认登记用例。参考[临时会话](src/echo_kit/skills/references/interactive-session.md)。
+人工验收准备服务并交付业务地址，未反馈时标记待验收。AI 交互验收默认使用原生会话：先确认目标、账号／租户及必要登录，再执行关键操作、截图并收尾，不默认登记用例。服务与浏览器占用覆盖全过程。只有明确选择 Playwright 兼容时，才核对脚本实际导入的客户端与 required_playwright_version；原生元数据不是 Playwright endpoint。单点失败先修复该点，结果不明不重跑业务请求。原生操作参考[快速观察](src/echo_kit/skills/references/visual-observation.md)；旧 Python helper 仅按需读取 `guide echo-workbench --topic browser-compatibility`。
 
 对于确需可重复验证的本地实验，执行：
 
@@ -166,7 +168,7 @@ Kit >= 0.3.0 提供项目文档分层。先调用 `echo-kit --json docs list`，
 
 独立体验见[演示步骤](docs/demo.md)。核心测试使用 `uv run pytest`，真实示例和 Docker 验收是独立证据。已有[验证记录](docs/validation.md)与[共享操作验证](docs/operations-validation.md)覆盖 Windows 和 Linux 容器，macOS 未验证；不能把容器结果扩展为所有 Linux 桌面或企业认证已验证。
 
-当前不提供 IDE 插件、Agent 引擎、通用验证码绕过或后台自动恢复。回放指已有记录和 Playwright trace 查看，不承诺确定性重跑。
+当前不提供 IDE 插件、Agent 引擎、通用验证码绕过或后台自动恢复。回放指已有记录、带格式标签的原生 Chrome/CDP trace 或显式兼容 Playwright trace，不承诺确定性重跑。
 
 维护 Kit 时，保持 Skill、协议副本与 CLI 文档入口、相关命令和示例一致。随包 Skill 或协议的修改需要提升版本并发布，且应在仓库外验证安装包实际携带的新内容；尚未发布时明确标记“待发版”。项目导出副本需另外比较、合并。完整规则见[发布与随包文档更新机制](docs/publishing.md)，发布遵循本轮已有授权。
 
@@ -180,11 +182,11 @@ Kit >= 0.3.0 提供项目文档分层。先调用 `echo-kit --json docs list`，
 
 ## 可视浏览器（0.6.0+）
 
-托管浏览器默认 `headless=false`，通过 noVNC 提供本机只读观看页。开始页面验收时展示返回的 `viewer_url`；用户要求观看时打开该链接。CLI 默认尝试调用系统浏览器打开一次，不要另外重复弹窗或在用户关闭后强制重开。`browser.auto_open=false` 禁止自动打开，CI 环境默认不打开，显式配置优先。观看页关闭不影响实验；上下文照常收尾并保存 trace，容器留供复用。
+1.0 起默认 `browser.backend="agent-browser"`、`headless=false`：Kit 自己启动独立 Chrome，agent-browser 连接该受管实例执行动作。用户直接看到可操作的本机窗口，不再默认 Docker/noVNC。关闭原生窗口可能结束会话，未保存状态不能保证恢复；不得自动重开页面或重跑结果不明的动作。
 
-`browser.headless=true` 禁用可视组件和观看端口。控制端口默认 19323，观看端口默认 19324，均只监听本机；使用多个工作区时分别配置端口。`browser up/status` 与 Verify 的浏览器记录包含实际模式、连接和观看地址。多个实验共享一个桌面，前台窗口可能切换。没有页面时桌面可能为空，这不代表浏览器失败。
+使用 `browser up --url URL --service NAME` 准备会话，再用 `browser exec -- snapshot -c`、click/fill/get/wait/screenshot 等已支持命令交互。不默认写浏览器脚本或登记用例。存活会话固定实际 Kit/agent-browser/Chrome 版本，短命令直接路由，不为每次点击重新联网。不使用个人浏览器 profile，也不自动发现外部端点。
 
-首次启动从固定 Playwright 基础镜像构建随包运行环境，按资源摘要缓存；构建失败不降级，检查返回的构建日志。`browser.image` 可配置同版本镜像源。旧容器、模式或运行资源变化会提示显式 `browser down`/`browser up`；先处理运行占用，不自动中断实验。外部 `browser.endpoint` 仍只连接，可选 `browser.viewer_url` 仅作外部链接，不自动打开，也不保证只读。详见[公开协议](docs/protocol.md#visible-browser)。
+首次准备下载经过摘要校验的固定依赖；离线缺失时明确报错。原生启动失败不得静默改成 Docker。显式 `--backend playwright` 或配置 backend="playwright" 才启用旧 Docker/Playwright；旧 image/port/viewer_port/endpoint 和旧容器不自动决定后端。旧 browser.session、Python准备回调、trace.zip 只在兼容方式使用；原生证据标明 Chrome/CDP JSON 格式。旧实例只读可见，切换前收尾占用并定向停止，不自动迁移业务仓库。
 
 ## 获取当前指南与更新说明
 
@@ -200,13 +202,13 @@ echo-kit updates notes --since 0.5.0
 
 指南默认返回同一执行包的精简 Skill、核心规则、主题目录、当前更新说明和版本；按需使用 `--topic TOPIC`，`--full` 才返回完整协议和参考资料；支持 `--json`，无需工作区。日常调用检查最新版；显式 `--offline` 和离线环境变量停留在当前入口，只用于确实离线或指定安装包验收。`--version` 按普通更新逻辑显示本次实际执行版本；`runtime info` 只诊断本地入口。一次实验的版本以运行记录为准。自动升级提示不代表项目已适配。
 
-前端调试推荐 **Kit 管理的 Docker 浏览器与只读 noVNC**。Docker 或构建失败时先处理错误，不自动改接外部浏览器。已有 `browser.endpoint` 仍生效，但只是显式兼容例外：Kit 不管理其镜像、显示模式和观看页，也不保证外部观看链接只读。查看 `browser up/status` 的能力信息；要切换时先检查配置来源和运行占用，在授权范围内调整配置后启动托管浏览器，不停止或接管原外部容器。
+前端调试默认 **Kit 管理的本机有头 Chrome＋agent-browser**。旧 Docker/noVNC 或外部 Playwright endpoint 必须明确选择兼容后端，不因配置字段或旧容器而自动启用。检查实际登记与占用后再切换；不停止或接管外部实例，不把原生失败变成静默回退。
 
 项目文档只维护启动方式、用例、认证流程、团队规则和环境归属；个人机器信息留在私有文档。项目 Skill 可写成指向 `echo-kit guide echo-workbench` 的短入口。整理旧副本时保留项目事实，再将通用 Kit 用法改为 CLI 入口，不覆盖原文。需要离线分发完整 Skill 时仍可导出到空目录并比较合并。
 
 ## Windows 托盘：关了观看页也能找回来
 
-0.8.0 起，在 Windows 桌面启动 Kit 托管服务或浏览器时，会自动出现 Echo Kit 托盘图标（可能收在右下角隐藏图标区）。关闭 noVNC 标签页后，右键托盘，选择项目的“打开调试画面”，即可继续看同一次实验，不用向 AI 发消息。
+Windows 桌面启动受管资源时会出现托盘图标。原生会话入口定位所属现存 Chrome 窗口；兼容实例继续打开 noVNC。窗口已关闭时如实报告，不能新建页面冒充恢复，未保存状态不保证找回。
 
 托盘显示进程和容器状态。受管构建或实验单独运行时也会显示托盘。
 
