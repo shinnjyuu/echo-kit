@@ -295,10 +295,14 @@ def status():
             'log': str(root() / 'tray.log'), 'projects': snapshot()}
 
 
-def notify(ws):
+def notify(ws, started=None):
     from .workspace_index import remember
     remember(ws)
     scope = _scope.get()
+    if scope is None and started is not None:
+        # Detached native workers do not inherit the caller's ContextVar. Keep
+        # its original operation time so a user's dismissal still wins here.
+        scope = {'started': started}
     if scope is None or scope.get('unavailable'):
         return
     from .launches import EmergencyInterrupted, checkpoint

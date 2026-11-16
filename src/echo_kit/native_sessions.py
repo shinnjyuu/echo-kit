@@ -267,6 +267,7 @@ def start(ws, **options):
 def _start(ws, *, url='about:blank', services=(), auth=None, auth_state=None, offline=False, visual=None, timeout_ms=10000, session_id=None):
     from .observer_cli import require_private_output
     from .browser import selected_backend
+    from .tray import _scope as tray_scope
     selected_backend(ws)  # Validate migration before any service/browser side effects.
     if (ws.state / 'browser.json').exists():
         from .browser import _legacy_manage
@@ -301,6 +302,7 @@ def _start(ws, *, url='about:blank', services=(), auth=None, auth_state=None, of
             raise KitError('Previous native session has unconfirmed processes; inspect it before starting again')
         require_private_output(ws)
         settings = {'workspace': str(ws.root), 'environment': ws.environment, 'actor': ws.actor,
+                    'started': (tray_scope.get() or {}).get('started', time.time()),
                     'session_id': sid, 'instance_id': uuid.uuid4().hex, 'url': url,
                     'services': list(services), 'auth_name': auth, 'offline': offline,
                     'auth_state': auth_state,
@@ -573,7 +575,7 @@ def worker(path):
                     save(public_file, record); save(output / 'session.json', record)
                     from .workspace_index import remember
                     from .tray import notify
-                    remember(ws); notify(ws)
+                    remember(ws); notify(ws, started=settings.get('started', time.time()))
                     family = 'AF_PIPE' if os.name == 'nt' else 'AF_UNIX'
                     ipc_directory = Path(tempfile.gettempdir()) / ('echo-ipc-' + uuid.uuid4().hex[:20])
                     private_directory(ipc_directory)
@@ -703,6 +705,13 @@ def worker(path):
             from .storage_metadata import own
             own(ws, output, 'observations', record.get('operation_id'), {**record, 'finished': time.time()})
         (directory / 'connection.json').unlink(missing_ok=True)
+        # A detached coordinator has no caller's ContextVar scope. Use its original
+        # admission time so manual tray exit during this operation remains respected.
+        from .tray import notify
+        try:
+            notify(ws, started=settings.get('started', time.time()))
+        except Exception:
+            pass
 
 
 def wait_exit(record, timeout=15):

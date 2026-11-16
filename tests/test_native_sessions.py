@@ -214,6 +214,14 @@ def test_legacy_configuration_requires_explicit_start_mode(monkeypatch, ws):
         browser.manage(ws, 'up')
 
 
+def test_compatibility_does_not_silently_ignore_native_preparation(monkeypatch, ws):
+    monkeypatch.setattr(browser, '_legacy_manage', lambda *a, **kw: pytest.fail('Must reject before starting a container'))
+    with pytest.raises(KitError, match='not a native session'):
+        browser.manage(ws, 'up', backend='playwright', url='http://localhost:5173', services=['web'])
+    with pytest.raises(KitError, match='not a native session'):
+        browser.manage(ws, 'down', backend='playwright', sid='a' * 32)
+
+
 def test_explicit_native_mode_is_forwarded_without_mutating_shared_config(monkeypatch, ws):
     original = {'endpoint': 'ws://localhost:3109/'}
     ws.cfg['browser'] = original

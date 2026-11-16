@@ -278,6 +278,10 @@ def manage(ws, action, *, backend=None, **options):
         return {'status': 'stopped', 'backend': 'agent-browser'}
     selected = selected_backend(ws, backend)
     if selected == 'playwright':
+        if options.get('sid') or (action == 'up' and (options.get('services') or options.get('auth')
+                or options.get('auth_state') or options.get('url', 'about:blank') != 'about:blank')):
+            raise KitError('Playwright compatibility up/down manages a workspace container, not a native session. '
+                           'Use explicit playwright browser observe for page, service and authentication preparation.')
         if action == 'up' and any(native_sessions.inspect_record(r)['state'] != 'stopped' for r in native_sessions.records(ws)):
             raise KitError('Finish and close native sessions before switching this workspace to compatibility mode')
         return {**_legacy_manage(ws, action), 'backend': 'playwright'}

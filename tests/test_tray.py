@@ -161,6 +161,94 @@ def test_optional_failure_keeps_business_verdict(ws, monkeypatch, capsys):
     assert 'Job denied' in (tray.root() / 'tray.log').read_text()
 
 
+def test_detached_native_notify_starts_tray_without_parent_scope(ws, monkeypatch):
+    monkeypatch.setattr(tray.sys, 'platform', 'win32')
+    monkeypatch.setattr(tray, 'enabled', lambda: True)
+    monkeypatch.setattr(tray, 'snapshot', lambda: [{'services': [], 'browser': {'state': 'running'}}])
+    current, calls = [], []
+    monkeypatch.setattr(tray, 'instance', lambda: current[0] if current else None)
+    def launch(token):
+        calls.append(token)
+        current.append({'token': token, 'version': 'test', 'protocol': tray.PROTOCOL})
+        return SimpleNamespace(poll=lambda: None)
+    monkeypatch.setattr(tray, 'launch', launch)
+    assert tray._scope.get() is None
+    tray.notify(ws, started=time.time())
+    assert len(calls) == 1
+    assert tray._scope.get() is None
+
+
+def test_notify_without_started_keeps_no_scope_behavior(ws, monkeypatch):
+    from echo_kit import workspace_index
+    remembered = []
+    monkeypatch.setattr(workspace_index, 'remember', lambda item: remembered.append(item))
+    monkeypatch.setattr(tray, 'start', lambda *args: pytest.fail('No operation requested tray startup'))
+    assert tray._scope.get() is None
+    tray.notify(ws)
+    assert remembered == [ws]
+    assert tray._scope.get() is None
+
+
+def test_detached_native_notify_respects_manual_exit_for_same_operation(ws, monkeypatch):
+    monkeypatch.setattr(tray.sys, 'platform', 'win32')
+    monkeypatch.setattr(tray, 'enabled', lambda: True)
+    monkeypatch.setattr(tray, 'snapshot', lambda: [{'services': [], 'browser': {'state': 'running'}}])
+    current, calls = [], []
+    monkeypatch.setattr(tray, 'instance', lambda: current[0] if current else None)
+    def launch(token):
+        calls.append(token)
+        current.append({'token': token, 'version': 'test', 'protocol': tray.PROTOCOL})
+        return SimpleNamespace(poll=lambda: None)
+    monkeypatch.setattr(tray, 'launch', launch)
+    started = time.time()
+    tray.notify(ws, started=started)
+    assert len(calls) == 1
+    tray.stop()
+    current.clear()
+    # Readiness and finalization in the detached worker share the parent's time.
+    tray.notify(ws, started=started)
+    tray.notify(ws, started=started)
+    assert len(calls) == 1
+    tray.notify(ws, started=tray.read(tray.root() / 'stop.json')['at'] + 1)
+    assert len(calls) == 2
+    assert tray._scope.get() is None
+
+
+def test_detached_native_notify_failure_is_non_blocking(ws, monkeypatch, capsys):
+    monkeypatch.setattr(tray, 'enabled', lambda: True)
+    def fail(*args):
+        raise OSError('Detached Job denied')
+    monkeypatch.setattr(tray, 'start', fail)
+    tray.notify(ws, started=time.time())
+    output = capsys.readouterr()
+    assert not output.out and 'tray unavailable' in output.err
+    assert 'Detached Job denied' in (tray.root() / 'tray.log').read_text()
+    assert tray._scope.get() is None
+
+
+@pytest.mark.parametrize('setting,ci,desktop', [('0', '', True), ('1', 'true', True), ('1', '', False)])
+def test_detached_native_notify_preserves_auto_start_opt_outs(ws, monkeypatch, setting, ci, desktop):
+    monkeypatch.setenv('ECHO_KIT_TRAY', setting)
+    monkeypatch.setenv('CI', ci)
+    monkeypatch.setattr(tray, 'interactive', lambda: desktop)
+    monkeypatch.setattr(tray, 'start', lambda *args: pytest.fail('Auto-start is disabled'))
+    tray.notify(ws, started=time.time())
+    assert tray._scope.get() is None
+
+
+def test_explicit_start_time_does_not_replace_existing_scope(ws, monkeypatch):
+    monkeypatch.setattr(tray, 'enabled', lambda: True)
+    seen = []
+    monkeypatch.setattr(tray, 'start', lambda item, started: seen.append(started) or {'status': 'passed'})
+    scope = {'started': 123}
+    token = tray._scope.set(scope)
+    try:
+        tray.notify(ws, started=456)
+        assert seen == [123] and tray._scope.get() is scope
+    finally:
+        tray._scope.reset(token)
+
+
 def test_disabled_and_no_resources_do_not_launch(ws, monkeypatch):
     monkeypatch.setattr(tray.sys, 'platform', 'win32')
     monkeypatch.setattr(tray, 'enabled', lambda: False)
