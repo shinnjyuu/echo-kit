@@ -359,7 +359,7 @@ class Visual:
         for key in ('failed_fonts', 'pending_fonts', 'failed_visible_images', 'pending_visible_images', 'failed_resources'):
             if measurement['diagnostics'][key]:
                 reasons.append(key)
-        failed_requests = (self.reference._echo_reference_errors or (self.local and self.local.failures)) if reference else self.observer.errors['failed_requests']
+        failed_requests = (self.reference._echo_reference_errors or (self.local and self.local.failures)) if reference else self.observer.readiness.errors['failed_requests']
         if failed_requests:
             reasons.append('resource_request_failed')
         if self.local and reference and self.local.changed(self.local.assets):

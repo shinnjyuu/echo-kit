@@ -42,6 +42,20 @@ Capture replies include current observation identity, paths/hashes, viewport and
 
 With a configured reference, `browser exec --session ID --page reference -- snapshot -c` explicitly opens and retains the isolated reference page for interaction. Its handles and authentication are separate from the target; normal reference capture remains temporary. Read the visual topic before selecting regions or freezing a baseline.
 
+## Page readiness and blank evidence
+
+Choose a CSS marker that appears on the intended page after it renders. Use the current session and actor:
+
+```sh
+echo-kit --workspace PATH --actor visual browser exec -- screenshot --ready-selector '#toolbox-title'
+```
+
+In the observation stream, use `{"op":"observe","id":"toolbox","target":"#toolbox-title"}` to wait and capture the viewport. Select `capture: "element"` for a close-up. The readiness selector is independent of the short command's cropping `--selector`. An exact, visible match satisfies the check within the session timeout. For a blocked response, read `page_check.reason` and `matches`, inspect `diagnostic_images` when present, and resolve the prerequisite before dependent business actions.
+
+`page_check.url` is the final address without credentials, query or fragment. `document_status` is the available main document status. Script HTTP statuses describe observable failed script responses, and page/console error counts cover the indicated `error_scope`. The native source is the recent owned daemon record; Playwright observes events since the check was attached to its page. Null means the signal was unavailable. Raw console messages, request headers and response bodies stay out of the readiness receipt.
+
+An ordinary full viewport image that is a single color remains available with `verification: unverified` and `uniform_viewport`. This includes intentional single-color states; interpret those using the expected page state. Use captures tied to the verified page state for a visual handoff, or explain which evidence is unavailable. `diagnostic_images` belong to the current failed request and supplement its reason. Reload, navigate, restart and retry only as an explicit next action after inspecting the results.
+
 ## Runtime and failure boundaries
 
 Kit uses the pinned native binary only as a controlled daemon attached to Kit's existing owned Chrome, through a fixed-version contract adapter. It does not let the upstream CLI create/restart arbitrary daemons or browsers. Each action is sent once; a sent request with an unknown result returns outcome_unknown and retains evidence. It must not be replayed to obtain an answer. Window, tab, daemon or Chrome loss requires explicit new startup; no silent personal-browser, Docker or headless fallback.

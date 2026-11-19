@@ -24,7 +24,7 @@ class AgentConnection:
             raise KitError('Native daemon timeout must be positive')
         self.directory, self.session, self.timeout = Path(directory), session, timeout
 
-    def _socket(self):
+    def _socket(self, timeout=None):
         if os.name == 'nt':
             port_file = self.directory / (self.session + '.port')
             if port_file.is_symlink() or port_file.stat().st_size > 16:
@@ -40,7 +40,7 @@ class AgentConnection:
                 raise OSError('Invalid native daemon socket')
             connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             address = str(path)
-        connection.settimeout(self.timeout)
+        connection.settimeout(self.timeout if timeout is None else timeout)
         try:
             connection.connect(address)
         except BaseException:
@@ -48,7 +48,7 @@ class AgentConnection:
             raise
         return connection
 
-    def request(self, action: str, **params):
+    def request(self, action: str, *, budget=None, **params):
         if not isinstance(action, str) or not action or 'id' in params or 'action' in params:
             raise KitError('Invalid native daemon action')
         request_id = uuid.uuid4().hex
@@ -62,18 +62,25 @@ class AgentConnection:
         sent = 0
         connection = None
         started = time.monotonic()
+        timeout = self.timeout if budget is None else min(budget, self.timeout)
         try:
-            connection = self._socket()
+            if timeout <= 0:
+                raise TimeoutError()
+            connection = self._socket() if budget is None else self._socket(timeout)
             # A request is sent once. Once any bytes leave this client, losing the
             # reply must never lead to re-running an action with business effects.
             while sent < len(body):
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError()
+                connection.settimeout(remaining)
                 count = connection.send(body[sent:])
                 if count == 0:
                     raise OSError('Disconnected')
                 sent += count
             received = bytearray()
             while b'\n' not in received:
-                remaining = self.timeout - (time.monotonic() - started)
+                remaining = timeout - (time.monotonic() - started)
                 if remaining <= 0:
                     raise TimeoutError()
                 connection.settimeout(remaining)
@@ -189,7 +196,8 @@ def translate(command: list[str]) -> dict:
                 return {'action': action.get(modes[0], 'wait') if modes else 'wait', **options}
     if name == 'screenshot':
         options, rest = _options(args, {'--full': ('fullPage', None), '-f': ('fullPage', None),
-                                      '--selector': ('selector', str), '--annotate': ('annotate', None)})
+                                      '--selector': ('selector', str), '--annotate': ('annotate', None),
+                                      '--ready-selector': ('ready_selector', str)})
         if len(rest) == 1:
             return {'action': 'screenshot', 'format': 'png', 'path': rest[0], **options}
     if name == 'diff' and args and args[0] == 'screenshot':

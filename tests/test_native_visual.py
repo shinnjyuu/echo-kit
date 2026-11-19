@@ -40,6 +40,12 @@ class Page:
     def set_viewport(self, value):
         self.viewport_size = dict(value)
 
+    def check_page(self, selector, deadline):
+        return {'status': 'ready' if selector else 'not_checked', 'matches': 1 if selector else None}
+
+    def page_errors(self, result):
+        result.update(page_errors=0, console_errors=0)
+
     def evaluate(self, script):
         if 'echo-kit-visual-inspect' in script:
             options = json.loads(script.rsplit(')(', 1)[1][:-1])
@@ -182,6 +188,16 @@ def test_observe_multiple_views_restores_current_page_without_reference(ws, tmp_
     assert engine.target.viewport_size == original
     assert engine.target.draft == 'unsaved controlled draft' and not created
     assert set(result['captures'][0]['timings_ms']) == {'ready', 'screenshot', 'file_read'}
+
+
+def test_observe_keeps_uniform_viewport_as_unverified_evidence(ws, tmp_path):
+    engine, _ = visual(ws, tmp_path)
+    result = engine.observe({'op': 'observe', 'id': 'o'}, 'uniform-view')
+    assert result['verification'] == 'unverified'
+    assert result['captures'][0]['unverified'] == ['uniform_viewport']
+    assert result['captures'][0]['page_check']['status'] == 'not_checked'
+    image, = result['images']
+    assert Path(image).is_file()
 
 
 def test_observe_failure_restores_viewport_and_does_not_return_partial_images(ws, tmp_path):

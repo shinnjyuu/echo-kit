@@ -136,6 +136,9 @@ def test_receipt_does_not_return_an_old_image(tmp_path):
         observation.read_reply(receipt, 'new', timeout_ms=5)
     save(receipt, {'id': 'new', 'images': []})
     assert observation.read_reply(receipt, 'new')['images'] == []
+    save(receipt, {'id': 'new', 'images': [], 'diagnostic_images': [str(tmp_path / 'missing.png')]})
+    with pytest.raises(KitError, match='attachments are missing'):
+        observation.read_reply(receipt, 'new')
 
 
 def test_failed_observe_start_uses_json_lines(tmp_path, monkeypatch, capsys):
@@ -162,7 +165,8 @@ def test_project_exception_does_not_echo_private_auth(tmp_path, monkeypatch, cap
     settings = {'generation': launches.gate(), 'operation_id': oid, 'endpoint': 'ws://fixture',
                 'url': 'http://fixture', 'output': str(tmp_path), 'timeout_ms': 20,
                 'auth': {'token': private_value}}
-    page = SimpleNamespace(set_viewport_size=lambda *_: None, goto=lambda *_args, **_kwargs: None, on=lambda *_: None)
+    page = SimpleNamespace(set_viewport_size=lambda *_: None, goto=lambda *_args, **_kwargs: None,
+                           on=lambda *_: None, remove_listener=lambda *_: None)
     @contextmanager
     def context(*_):
         yield SimpleNamespace(set_default_timeout=lambda *_: None,

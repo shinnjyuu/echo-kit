@@ -23,6 +23,7 @@ from filelock import FileLock
 from . import __version__, launches
 from .core import KitError, Workspace, read, save
 from .operations import Journal, data_root
+from .page_readiness import PageNotReady
 from .processes import fingerprint, matches, kill_tree, alive
 
 MAX_BYTES = 262144
@@ -226,7 +227,7 @@ def storage_state(auth):
     return state
 
 
-def request(ws, sid, payload, timeout=60):
+def request(ws, sid, payload, timeout=None):
     control(ws, sid)
     record = _record(ws, sid)
     validate_scope(ws, record)
@@ -235,6 +236,16 @@ def request(ws, sid, payload, timeout=60):
     private = read(control(ws, sid) / 'connection.json', {})
     if private.get('instance_id') != record.get('instance_id'):
         raise KitError('Native session control identity changed')
+    if timeout is None:
+        timeout = 60
+        # Keep the control client alive for the worker's declared observation budget.
+        limit_ms = record.get('timeout_ms')
+        if isinstance(payload, dict) and type(limit_ms) is int and 1 <= limit_ms <= 120000:
+            command = payload.get('command')
+            if payload.get('op') == 'observe':
+                timeout = max(timeout, 4 * limit_ms / 1000 + 10)
+            elif payload.get('op') == 'exec' and isinstance(command, list) and command[:1] == ['screenshot']:
+                timeout = max(timeout, 2 * limit_ms / 1000 + 10)
     connection = connect_client(private['address'], family=private['family'],
                                 authkey=bytes.fromhex(private['token']), timeout=timeout)
     try:
@@ -346,17 +357,18 @@ class NativeTarget:
         if any(proc.poll() is not None for proc in self.processes) or not all(matches(i) for i in self.identities):
             raise KitError('Native browser or daemon stopped; automatic recreation is disabled')
 
-    def call(self, action, **params):
+    def call(self, action, *, budget=None, **params):
         self._alive()
-        response = self.connection.request(action, **params)
+        limits = {} if budget is None else {'budget': budget}
+        response = self.connection.request(action, **limits, **params)
         if not response.get('success'):
             error = KitError('Native action failed: ' + str(response.get('code') or 'browser_action_failed'))
             error.details = {'native_error': response.get('code'), 'outcome_unknown': response.get('code') == 'outcome_unknown'}
             raise error
         return response
 
-    def evaluate(self, script):
-        data = self.call('evaluate', script=script).get('data', {})
+    def evaluate(self, script, *, budget=None):
+        data = self.call('evaluate', budget=budget, script=script).get('data', {})
         if data.get('unserializable'):
             raise KitError('Evaluation did not return a JSON value')
         return data.get('result')
@@ -365,6 +377,8 @@ class NativeTarget:
         from .native_transport import translate
         params = translate(command)
         action = params.pop('action')
+        if 'ready_selector' in params:
+            raise KitError('Use browser exec for a screenshot with a readiness selector')
         if action in ('screenshot', 'trace_stop', 'diff_screenshot'):
             name = 'output' if action == 'diff_screenshot' else 'path'
             proposed = Path(params.get(name, str(self.output / (uuid.uuid4().hex + '.png'))))
@@ -377,11 +391,87 @@ class NativeTarget:
                     raise KitError('Diff baseline must belong to this observation session')
         return self.call(action, **params)
 
-    def screenshot(self, path, selector=None):
+    def check_page(self, selector, deadline):
+        from .page_readiness import PAGE_SAMPLE, page_check
+
+        def probe(value, budget):
+            script = '(' + PAGE_SAMPLE + ')(' + json.dumps(value, ensure_ascii=True) + ')'
+            try:
+                return self.evaluate(script, budget=budget)
+            except launches.EmergencyInterrupted:
+                raise
+            except KitError:
+                return None
+
+        return page_check(probe, selector, deadline)
+
+    def page_errors(self, result):
+        """Summarize the pinned daemon's recent events without returning their bodies."""
+        for action, key, field in (('errors', 'errors', 'page_errors'), ('console', 'messages', 'console_errors')):
+            try:
+                data = self.call(action, budget=1).get('data', {})
+            except launches.EmergencyInterrupted:
+                raise
+            except KitError:
+                continue
+            entries = data.get(key) if isinstance(data, dict) else None
+            if isinstance(entries, list):
+                result[field] = sum(isinstance(event, dict) and (action == 'errors' or event.get('type') == 'error')
+                                    for event in entries)
+                result['error_scope'] = 'recent_session'
+
+    def readiness_failure(self, result, path):
+        self.page_errors(result)
+        images = []
+        try:
+            self.screenshot(path, budget=1)
+            images.append(str(path))
+        except launches.EmergencyInterrupted:
+            raise
+        except (KitError, OSError):
+            pass  # An unavailable screenshot must not hide the readiness failure.
+        return PageNotReady(result, images)
+
+    def exec_screenshot(self, command, observation_id, reference_token=None):
+        from .native_transport import translate
+        from .page_readiness import viewport_issue
+
+        picture = self.output / (observation_id + '-actual.png')
+        options = translate(command + [str(picture)])
+        selector = options.pop('ready_selector', None)
+        check = None
+        if selector is not None:
+            check = self.check_page(selector, time.monotonic() + self.timeout_ms / 1000)
+            if reference_token and check['url']:
+                check['url'] = check['url'].replace(reference_token, '[reference]')
+            if check['status'] != 'ready':
+                raise self.readiness_failure(check, self.output / (observation_id + '-failure.png'))
+        if not picture.resolve().is_relative_to(self.output.resolve()):
+            raise KitError('Screenshot must remain inside this observation unit')
+        data = self.call(**options).get('data')
+        if not picture.is_file():
+            raise KitError('Native screenshot was not written')
+        issue = None
+        if not options.get('selector') and not options.get('fullPage') and not options.get('annotate'):
+            issue = viewport_issue(picture.read_bytes())
+        result = {'data': data, 'images': [str(picture)], 'verification': 'unverified' if issue else 'captured'}
+        if issue:
+            if check is None:
+                check = self.check_page(None, time.monotonic() + 1)
+                if reference_token and check['url']:
+                    check['url'] = check['url'].replace(reference_token, '[reference]')
+            self.page_errors(check)
+            result['unverified'] = [issue]
+        if check is not None:
+            result['page_check'] = check
+        return result
+
+    def screenshot(self, path, selector=None, *, budget=None):
         path = Path(path)
         if not path.resolve().is_relative_to(self.output.resolve()):
             raise KitError('Screenshot must remain inside this observation unit')
-        result = self.call('screenshot', path=str(path), selector=selector, fullPage=False, annotate=False, format='png')
+        result = self.call('screenshot', budget=budget, path=str(path), selector=selector, fullPage=False,
+                           annotate=False, format='png')
         if not path.is_file():
             raise KitError('Native screenshot was not written')
         return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'native': result.get('data')}
@@ -528,6 +618,7 @@ def worker(path):
               'workspace': str(ws.root), 'environment': ws.environment, 'actor': ws.actor,
               'identity': fingerprint(os.getpid()), 'children': [], 'status': 'starting',
               'version': __version__, 'headless': bool(ws.cfg.get('browser', {}).get('headless', False)),
+              'timeout_ms': settings['timeout_ms'],
               'trace_format': 'chrome-trace-events', 'endpoint': None, 'viewer_url': None}
     from .browser import configuration_sources, LEGACY_FIELDS
     record['configuration_sources'] = configuration_sources(ws)
@@ -657,18 +748,19 @@ def worker(path):
                                         command = message.get('command', [])
                                         with ExitStack() as command_stack:
                                             active = engine
+                                            reference_token = None
                                             if message.get('page') == 'reference':
                                                 if visual is None:
                                                     raise KitError('This session has no reference source')
                                                 active = command_stack.enter_context(visual.reference_page(keep=True))
+                                                if visual.kept_server:
+                                                    reference_token = visual.kept_server.token
                                             if command and command[0] == 'screenshot':
-                                                from .native_transport import translate
-                                                picture = output / (oid_image + '-actual.png')
-                                                parsed = translate(command + [str(picture)])
-                                                response['data'] = active.call(**parsed).get('data')
-                                                response['images'] = [str(picture)]
+                                                response.update(active.exec_screenshot(command, oid_image, reference_token))
                                             else:
                                                 response['data'] = active.command(command).get('data')
+                                except PageNotReady as error:
+                                    response.update(status='blocked', error=str(error), **error.details)
                                 except Exception as error:
                                     if (getattr(error, 'details', {}).get('outcome_unknown')
                                             or getattr(error, 'details', {}).get('cleanup_unconfirmed') or 'outcome_unknown' in str(error)):

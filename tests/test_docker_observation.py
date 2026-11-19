@@ -92,9 +92,9 @@ ready.port = {server.server_port}
         server.server_close()
 
 
-def start_client(ws, base, adapter=None):
+def start_client(ws, base, adapter=None, timeout_ms=10000):
     args = [sys.executable, '-m', 'echo_kit', '--offline', '--workspace', str(ws.root),
-            'browser', 'observe', '--url', base, '--service', 'web']
+            'browser', 'observe', '--url', base, '--service', 'web', '--timeout-ms', str(timeout_ms)]
     if adapter:
         args.extend(['--adapter', str(adapter)])
     process = subprocess.Popen(args, cwd=ws.root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -110,6 +110,43 @@ def send(process, replies, request):
     result = replies.get(timeout=60)
     assert result['id'] == request['id'], result
     return result
+
+
+def test_real_compatibility_observation_blocks_blank_app_before_capture(visual_fixture):
+    from echo_kit.observation import read_reply
+
+    ws, base = visual_fixture
+    page_file = ws.root / 'page.html'
+    page_file.write_text('<!doctype html><style>body{background:#f6f4f1}</style>'
+                         '<script src="/broken" defer></script>', encoding='utf-8')
+    process, replies = start_client(ws, base, timeout_ms=2500)
+    try:
+        ready = replies.get(timeout=60)
+        assert ready['event'] == 'ready', ready
+        blocked = send(process, replies, {'op': 'observe', 'id': 'before', 'target': '#toolbox'})
+        assert blocked['status'] == 'error' and blocked['error']['code'] == 'page_not_ready'
+        assert blocked['images'] == [] and blocked['page_check']['reason'] == 'target_missing'
+        assert blocked['page_check']['document_status'] == 200
+        assert 503 in blocked['page_check']['script_http_statuses']
+        assert read_reply(ready['reply_file'], 'before')['diagnostic_images'] == blocked['diagnostic_images']
+        assert Path(blocked['diagnostic_images'][0]).name.startswith(blocked['observation_id'])
+        blank = send(process, replies, {'op': 'observe', 'id': 'blank'})
+        assert blank['verification'] == 'unverified'
+        assert blank['captures'][0]['unverified'] == ['uniform_viewport']
+
+        page_file.write_text('<!doctype html><script>setTimeout(() => document.body.insertAdjacentHTML('
+                             '"beforeend", "<h1 id=toolbox>Toolbox</h1>"), 250)</script>', encoding='utf-8')
+        assert send(process, replies, {'op': 'reload', 'id': 'reload'})['status'] == 'ok'
+        recovered = send(process, replies, {'op': 'observe', 'id': 'after', 'target': '#toolbox'})
+        assert recovered['verification'] == 'captured'
+        assert recovered['captures'][0]['page_check']['status'] == 'ready'
+        assert recovered['operation_id'] == blocked['operation_id']
+        assert send(process, replies, {'op': 'close', 'id': 'close'})['status'] == 'closed'
+        assert process.wait(timeout=10) == 0
+    finally:
+        if process.poll() is None:
+            process.stdin.close()
+            process.wait(timeout=15)
 
 
 def test_real_observation_state_reuse_and_protocol(visual_fixture):

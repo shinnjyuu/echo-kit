@@ -16,7 +16,8 @@ from urllib.parse import quote, urlsplit
 from . import launches
 from .core import KitError, save
 from .document_map import Discovery
-from .observation import public_url, validate
+from .observation import validate
+from .page_readiness import public_address, viewport_issue
 from .visual import MAX_PIXELS, ORIGIN, LocalReference, configuration, differences
 
 
@@ -243,10 +244,16 @@ class NativeVisual:
             raise KitError('Visual image is missing or outside this observation session')
         return path
 
-    def _sample(self, page, selector, request, prefix, reference=False, diff_baseline=None, inspect_selector=None):
+    def _sample(self, page, selector, request, prefix, reference=False, diff_baseline=None,
+                inspect_selector=None, check_viewport=False):
         self._checkpoint()
         began = time.monotonic()
-        readiness_deadline = time.monotonic() + self.timeout_ms / 1000
+        readiness_deadline = began + self.timeout_ms / 1000
+        check = None
+        if inspect_selector is not None:
+            check = page.check_page(inspect_selector, min(self.deadline, readiness_deadline))
+            if check['status'] != 'ready':
+                raise page.readiness_failure(check, self.output / (prefix + '-failure.png'))
         while True:
             measured = self._inspect(page, inspect_selector or selector or 'body', 1)
             if measured.get('matched', 0) > 1:
@@ -314,13 +321,19 @@ class NativeVisual:
                                       'pending_visible_images', 'failed_resources') if diagnostics.get(name)]
         screenshot_ms = (time.monotonic() - screenshot_started) * 1000
         read_started = time.monotonic()
-        digest = hashlib.sha256(self._owned_png(path).read_bytes()).hexdigest()
+        png = self._owned_png(path).read_bytes()
+        digest = hashlib.sha256(png).hexdigest()
+        if check_viewport and (issue := viewport_issue(png)):
+            reasons.append(issue)
         file_read_ms = (time.monotonic() - read_started) * 1000
-        return {'path': str(path), 'sha256': digest,
-                'measurement': measured, 'unverified': reasons, 'pixels': metric,
-                'timings_ms': {'ready': round(ready_ms, 2), 'screenshot': round(screenshot_ms, 2),
-                               'file_read': round(file_read_ms, 2)},
-                'elapsed_ms': round((time.monotonic() - began) * 1000, 2)}
+        result = {'path': str(path), 'sha256': digest,
+                  'measurement': measured, 'unverified': reasons, 'pixels': metric,
+                  'timings_ms': {'ready': round(ready_ms, 2), 'screenshot': round(screenshot_ms, 2),
+                                 'file_read': round(file_read_ms, 2)},
+                  'elapsed_ms': round((time.monotonic() - began) * 1000, 2)}
+        if check is not None:
+            result['page_check'] = check
+        return result
 
     def observe(self, request, observation_id):
         """Capture at most four views without creating a reference or changing page state."""
@@ -337,14 +350,23 @@ class NativeVisual:
             for index, view in enumerate(request.get('viewports') or [old_viewport]):
                 if view != self.target.viewport_size:
                     self.target.set_viewport(view)
-                selector = request.get('target') if request.get('capture') == 'element' else None
+                target = request.get('target')
+                selector = target if request.get('capture') == 'element' else None
                 sample = self._sample(self.target, selector, request, f'{observation_id}-actual-{index}',
-                                      inspect_selector=request.get('target'))
+                                      inspect_selector=target, check_viewport=selector is None)
                 sample.pop('pixels', None)
                 sample['viewport'] = dict(view)
-                sample['url'] = public_url(location) if isinstance(location, str) else None
+                sample['url'] = public_address(location)
                 sample['animations'] = request.get('animations', 'allow')
                 sample['diagnostics'] = sample['measurement'].get('diagnostics', {})
+                check = sample.get('page_check')
+                if sample['unverified']:
+                    if check is None:
+                        check = self.target.check_page(None, time.monotonic() + 1)
+                    self.target.page_errors(check)
+                if check is not None:
+                    sample['url'] = check.get('url') or sample['url']
+                    sample['page_check'] = check
                 captures.append(sample)
         finally:
             if self.target.viewport_size != old_viewport:

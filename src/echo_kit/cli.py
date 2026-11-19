@@ -75,7 +75,8 @@ def parser():
                 cmd.add_argument('--session', help='Owned native session; default is workspace/environment/actor')
                 cmd.add_argument('--page', choices=['target', 'reference'], default='target')
                 cmd.add_argument('--stdin', action='store_true', help='Read private JSON request with command tokens from stdin')
-                cmd.add_argument('command', nargs=argparse.REMAINDER, help='Supported browser command after --')
+                cmd.add_argument('command', nargs=argparse.REMAINDER,
+                                 help='Supported browser command after -- (e.g. screenshot --ready-selector CSS)')
             elif module == 'browser' and action in ('up', 'observe'):
                 cmd.add_argument('--backend', choices=['agent-browser', 'playwright'])
                 cmd.add_argument('--session', help='Existing owned session for observe')

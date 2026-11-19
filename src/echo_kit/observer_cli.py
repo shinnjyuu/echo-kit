@@ -121,9 +121,12 @@ def relay(child, replies, output, timeout, capabilities=None):
         result = receive(child, replies, timeout)
         if result.get('id') != request['id']:
             raise KitError('Observation worker response id mismatch')
-        images = result.get('images', [])
-        if not isinstance(images, list):
-            raise KitError('Invalid observation image list')
+        images = []
+        for key in ('images', 'diagnostic_images'):
+            values = result.get(key, [])
+            if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                raise KitError('Invalid observation image list')
+            images.extend(values)
         observation_id = result.get('observation_id')
         if images and (not isinstance(observation_id, str) or observation_id in observations):
             raise KitError('Observation image freshness could not be confirmed')

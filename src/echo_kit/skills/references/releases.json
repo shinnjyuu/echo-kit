@@ -206,5 +206,13 @@
     "applies_when": "Daily browser debugging, prototype fidelity, or an old browser setup needs migration. Short existing-session commands avoid per-click update checks; default source/target sessions do not share personal login state.",
     "steps": "Read browser and visual topics. Prepare the native runtime and owned session, use browser exec for supported actions or browser observe for persistent JSON. Select backend explicitly for old configuration and browser adapters; stop owned old resources after completing use, never auto-migrate business projects. Compare fixed reference evidence with selected Markdown requirements. Re-export to an empty directory and merge project edits deliberately.",
     "no_change_when": "Non-browser service, document, experiment and disk capabilities retain their interfaces. Existing Playwright hooks/trace.zip work only in explicitly selected compatibility mode. No default control scripts, full-site matrix, real model calls, personal-browser takeover or silent fallback are added."
+  },
+  {
+    "version": "1.0.1",
+    "changes": "Browser screenshots distinguish a rendered target from an HTTP response and flag single-color viewports as unverified. Failed readiness checks include redacted diagnostics and an optional current failure image.",
+    "configuration": "Optional browser exec screenshot --ready-selector CSS. Observe uses its existing target. Playwright adapters can use PageReadiness with the page they already own.",
+    "applies_when": "Visual acceptance opens a blank page, a login redirect or a page whose expected element has yet to render.",
+    "steps": "Wait for a page-specific visible marker in the same acceptance session. On a blocked result, inspect page_check and diagnostic_images before continuing. Deliver observed changes only after a meaningful current capture and the relevant action checks.",
+    "no_change_when": "Service reachability checks and existing adapter result files continue to work. Element screenshots retain their capture behavior; arbitrary business scripts opt into page readiness."
   }
 ]

@@ -42,6 +42,21 @@ Verify `.echo-kit/` is ignored and untracked before creating artifacts. Keep thi
 
 Inside the live session, create your own page and perform successive actions based on observed results. `context, oid, output` stay valid only inside the block. Save necessary screenshots under `output`; the helper saves `trace.zip` and closes its own context/connection on exit. Other contexts and the container remain available. `oid` is an operation ID, not a run ID; this example creates no formal experiment report.
 
+For an existing Playwright verification adapter, attach readiness diagnostics before navigating to the page under test. Supply the adapter's existing artifact directory (`ECHO_RUN_DIR`). Inside the adapter function:
+
+```python
+from echo_kit.page_readiness import PageReadiness
+
+with PageReadiness(page) as readiness:
+    navigation = page.goto(frontend_url, wait_until="domcontentloaded")
+    preflight = readiness.check("#toolbox-title", navigation=navigation, output=output)
+
+if preflight["check"]["status"] == "blocked":
+    return {"status": "blocked", "checks": [preflight["check"]], "artifacts": preflight["artifacts"]}
+```
+
+The helper checks the supplied page, returns redacted diagnostics under `page_check`, and can save a small JSON report plus a current failure screenshot. Use relative paths from `artifacts` in the existing adapter result. On success, include `preflight["check"]` alongside the business assertions. Choose a marker specific to the expected page and user state.
+
 For user-visible page changes, keep key final-state captures from this authorized interaction and show them with brief location/change/usage captions at handoff; follow [page change handoff](protocol.md#page-change-handoff). Label simulated or isolated states and report verified actions separately. This reference is optional: human acceptance and backend-only work do not require a session or script for screenshot delivery; explain missing screenshot conditions and pending checks instead.
 
 This example is for observational acceptance. Before actions that create asynchronous work or temporary business data, establish project cleanup and durable evidence; mark `Journal().update(oid, requires_resolution=True)` before starting such work. Do not clear that flag until actual completion/cleanup is verified. Prefer a repeatable case with the existing cleanup adapter when reliable lifecycle tracking is needed. Shared service reservations do not isolate business data; non-concurrent changes require exclusive service use. Interruptions retain a reservation for inspection, and confirmed stale reservations may be resolved without a routine human approval prompt.

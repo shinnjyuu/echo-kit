@@ -13,6 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from . import __version__, browser, launches
 from .core import KitError, save
+from .page_readiness import PageNotReady, PageReadiness, validate_selector, viewport_issue
 
 MAX_LINE = 262144
 
@@ -69,8 +70,8 @@ def validate(request):
     if op == 'navigate':
         url(request.get('url'))
     target = request.get('target')
-    if target is not None and (not isinstance(target, str) or not target.strip() or len(target) > 512):
-        raise KitError('target must be a nonempty CSS selector of at most 512 characters')
+    if target is not None:
+        validate_selector(target)
     if request.get('capture', 'viewport') not in ('viewport', 'element'):
         raise KitError('capture must be viewport or element')
     if request.get('capture') == 'element' and not target:
@@ -119,22 +120,15 @@ def validate(request):
 
 
 class Observer:
-    def __init__(self, page, settings, ready=None, diagnose=None, annotations=None):
+    def __init__(self, page, settings, readiness, ready=None, diagnose=None, annotations=None):
         self.page, self.settings = page, settings
+        self.readiness = readiness
         self.ready, self.diagnose = ready, diagnose
         self.output = Path(settings['output'])
         self.script = files('echo_kit').joinpath('resources/observe.js').read_text(encoding='utf-8')
         self.secrets = secret_strings(settings.get('auth'))
         self.annotations = clean(annotations or {}, self.secrets)
-        self.errors = {'page_errors': 0, 'console_errors': 0, 'failed_requests': 0}
         self.visual = None
-        page.on('pageerror', lambda *_: self.count('page_errors'))
-        page.on('console', lambda item: self.count('console_errors') if item.type == 'error' else None)
-        page.on('requestfailed', lambda *_: self.count('failed_requests'))
-        page.on('response', lambda response: self.count('failed_requests') if response.status >= 400 else None)
-
-    def count(self, key):
-        self.errors[key] += 1
 
     def response(self, request):
         started = time.monotonic()
@@ -163,6 +157,7 @@ class Observer:
                         self.page.set_viewport_size(view)
                     captures.append(self.capture(request, observation_id, index))
                 result.update(captures=captures, images=[item['path'] for item in captures])
+                result['verification'] = 'unverified' if any(item.get('unverified') for item in captures) else 'captured'
             elif op in ('inspect', 'reference', 'compare'):
                 if self.visual is None:
                     from .visual import Visual
@@ -171,6 +166,8 @@ class Observer:
             result.update(status='ok', url=public_url(self.page.url), annotations=self.annotations)
             if len(json.dumps(result, ensure_ascii=False).encode('utf-8')) > MAX_LINE - 1024:
                 raise KitError('Visual response exceeds 256 KiB; request fewer regions or viewports')
+        except PageNotReady as error:
+            result.update(error={'code': 'page_not_ready', 'message': str(error)}, **error.details)
         except Exception as error:
             # Runtime exceptions can contain page data, URLs or adapter credentials.
             result.update(error={'code': 'observation_failed', 'type': type(error).__name__}, images=[], captures=[])
@@ -199,14 +196,15 @@ class Observer:
         if self.ready:
             self.ready(self.page, request)
         target = request.get('target')
+        check = self.readiness.inspect(target, deadline) if target is not None else None
+        if check is not None and check['status'] != 'ready':
+            failure = self.output / f'{observation_id}-failure-{index}.png'
+            raise PageNotReady(check, self.readiness.failure_image(failure))
         locator = self.page.locator(target) if target else None
         if locator is not None:
-            if locator.count() != 1:
-                raise KitError('target must match one element')
-            locator.wait_for(state='visible', timeout=remaining())
             locator.scroll_into_view_if_needed(timeout=remaining())
         diagnostic = self.page.evaluate(self.script, {'target': target, 'timeoutMs': remaining()})
-        diagnostic.update(self.errors)
+        diagnostic.update(self.readiness.errors)
         if self.diagnose:
             diagnostic['project'] = clean(self.diagnose(self.page, request), self.secrets)
         ready_ms = (time.monotonic() - began) * 1000
@@ -216,11 +214,20 @@ class Observer:
         source.screenshot(path=str(path), scale='css', animations=request.get('animations', 'allow'), timeout=remaining())
         screenshot_ms = (time.monotonic() - screenshot_started) * 1000
         read_started = time.monotonic()
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        return {'path': str(path), 'sha256': digest, 'viewport': self.page.viewport_size,
-                'url': public_url(self.page.url), 'animations': request.get('animations', 'allow'),
-                'diagnostics': diagnostic, 'timings_ms': {'ready': round(ready_ms, 2),
-                'screenshot': round(screenshot_ms, 2), 'file_read': round((time.monotonic() - read_started) * 1000, 2)}}
+        png = path.read_bytes()
+        digest = hashlib.sha256(png).hexdigest()
+        file_read_ms = (time.monotonic() - read_started) * 1000
+        result = {'path': str(path), 'sha256': digest, 'viewport': self.page.viewport_size,
+                  'url': public_url(self.page.url), 'animations': request.get('animations', 'allow'),
+                  'diagnostics': diagnostic, 'timings_ms': {'ready': round(ready_ms, 2),
+                  'screenshot': round(screenshot_ms, 2), 'file_read': round(file_read_ms, 2)}}
+        if source is self.page and (issue := viewport_issue(png)):
+            result['unverified'] = [issue]
+            if check is None:
+                check = self.readiness.inspect(None, time.monotonic() + 1)
+        if check is not None:
+            result['page_check'] = check
+        return result
 
 
 def serve_observer(*, prepare=None, ready=None, diagnose=None, prepare_reference=None, ready_reference=None):
@@ -250,7 +257,8 @@ def serve_observer(*, prepare=None, ready=None, diagnose=None, prepare_reference
                 context.set_default_navigation_timeout(settings['timeout_ms'])
                 page = context.new_page()
                 page.set_viewport_size({'width': 1440, 'height': 900})
-                observer = Observer(page, settings, ready, diagnose)
+                readiness = stack.enter_context(PageReadiness(page))
+                observer = Observer(page, settings, readiness, ready, diagnose)
                 response = page.goto(settings['url'], wait_until='domcontentloaded')
                 if response and response.status >= 400:
                     raise KitError('Initial URL returned an HTTP error')
@@ -302,7 +310,7 @@ def read_reply(path, request_id, timeout_ms=30000):
             raise KitError('Observation attachments were reclaimed or are unverified; start a new observation session')
         value = read(path, {})
         if value.get('id') == request_id:
-            if any(not Path(i).is_file() for i in value.get('images', [])):
+            if any(not Path(i).is_file() for key in ('images', 'diagnostic_images') for i in value.get(key, [])):
                 raise KitError('Observation attachments are missing; request a new observation')
             return value
         time.sleep(.025)
